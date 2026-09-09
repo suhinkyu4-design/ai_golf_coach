@@ -1,0 +1,24 @@
+# Flutter & Dart
+.dart_tool/
+.build/
+.pub-cache/
+.pub/
+build/
+
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+bin/
+gen/
+local.properties
+.gradle/
+app/build/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
