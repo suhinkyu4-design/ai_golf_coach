@@ -1,0 +1,40 @@
+name: ai_golf_coach
+description: "AI On-Device Golf Swing Analysis & OCR Coaching App"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  provider: ^6.1.1
+
+  # Media & Inputs
+  image_picker: ^1.0.7
+  file_picker: ^8.0.0
+
+  # ML & OCR
+  google_mlkit_text_recognition: ^0.11.0
+  google_mlkit_pose_detection: ^0.10.0
+
+  # Math & Utilities
+  vector_math: ^2.1.4
+  intl: ^0.19.0
+  path: ^1.9.0
+  sqflite: ^2.3.2
+
+  # UI Design
+  cupertino_icons: ^1.0.6
+  fl_chart: ^0.66.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
