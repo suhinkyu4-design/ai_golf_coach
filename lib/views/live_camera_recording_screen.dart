@@ -146,7 +146,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: Colors.tealAccent),
+                    CircularProgressIndicator(color: Colors.cyanAccent),
                     SizedBox(height: 12),
                     Text(
                       '카메라 라이브 피드 연결 중...',
@@ -157,13 +157,13 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
               ),
             ),
 
-          // 2. Real-time Body Contour Mesh & Dynamic Curves Overlay Layer
+          // 2. Pure Body Contour Selection Mask Overlay Layer (No internal skeleton sticks)
           AnimatedBuilder(
             animation: _animController,
             builder: (context, child) {
               return CustomPaint(
                 size: Size.infinite,
-                painter: LivePoseContourMeshPainter(
+                painter: PureBodyContourPainter(
                   animValue: _animController.value,
                   phase: _currentPhase,
                 ),
@@ -190,7 +190,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.8),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.tealAccent, width: 1.5),
+                    border: Border.all(color: Colors.cyanAccent, width: 1.5),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -199,7 +199,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                         width: 10,
                         height: 10,
                         decoration: const BoxDecoration(
-                          color: Colors.tealAccent,
+                          color: Colors.cyanAccent,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -207,7 +207,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                       Text(
                         'PHASE: $_currentPhase',
                         style: const TextStyle(
-                          color: Colors.tealAccent,
+                          color: Colors.cyanAccent,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
                         ),
@@ -216,7 +216,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                   ),
                 ),
 
-                const Icon(Icons.blur_on_rounded, color: Colors.tealAccent),
+                const Icon(Icons.auto_awesome_rounded, color: Colors.cyanAccent),
               ],
             ),
           ),
@@ -235,7 +235,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                   border: Border.all(color: Colors.cyanAccent.withOpacity(0.8)),
                 ),
                 child: Text(
-                  isEn ? '✨ MediaPipe Pose: Body Contour Mesh & Curves Active' : '✨ MediaPipe AI: 신체 곡선 윤곽선 & 포즈 실시간 추적 중',
+                  isEn ? '✨ Auto Body Contour Silhouette Mask Active' : '✨ 신체 윤곽선 자동 누끼 선택 실시간 라이브 감지 중',
                   style: const TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -287,7 +287,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                 Text(
                   _isRecording
                       ? (isEn ? 'Tap RED button to STOP & Analyze' : '촬영 정지 및 분석 시작 (버튼 클릭)')
-                      : (isEn ? 'Align full body & TAP to Record' : '전신 신체 곡선을 화면에 맞추고 촬영 버튼을 누르세요'),
+                      : (isEn ? 'Align body outline & TAP to Record' : '신체 윤곽선 안으로 맞추고 촬영 버튼을 누르세요'),
                   style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, shadows: [
                     Shadow(blurRadius: 4, color: Colors.black, offset: Offset(0, 2)),
                   ]),
@@ -323,46 +323,43 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
   }
 }
 
-/// CustomPainter to render dynamic smooth Body Contour Mesh & Curves over live camera preview
-class LivePoseContourMeshPainter extends CustomPainter {
+/// CustomPainter to render ONLY the pure outer body contour silhouette outline (No internal skeleton sticks)
+class PureBodyContourPainter extends CustomPainter {
   final double animValue;
   final String phase;
 
-  LivePoseContourMeshPainter({required this.animValue, required this.phase});
+  PureBodyContourPainter({required this.animValue, required this.phase});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2 - 20);
-    final double pulse = 1.0 + (animValue * 0.02);
+    final double pulse = 1.0 + (animValue * 0.015);
 
     // Paints
-    final contourLinePaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.85)
-      ..strokeWidth = 3.0
+    final contourOutlinePaint = Paint()
+      ..color = Colors.cyanAccent
+      ..strokeWidth = 3.5
       ..style = PaintingStyle.stroke;
 
     final contourGlowPaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.3)
-      ..strokeWidth = 8.0
+      ..color = Colors.cyanAccent.withOpacity(0.4)
+      ..strokeWidth = 10.0
       ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
-    final skeletonBonePaint = Paint()
-      ..color = Colors.tealAccent
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
-
-    final jointDotPaint = Paint()
-      ..color = Colors.amberAccent
+    final silhouetteFillPaint = Paint()
+      ..color = Colors.cyanAccent.withOpacity(0.10)
       ..style = PaintingStyle.fill;
 
-    // Pose Keypoints
-    final headCenter = Offset(center.dx, center.dy - 130 * pulse);
-    final neck = Offset(center.dx, center.dy - 85 * pulse);
+    // Body Contour Keypoints (Outer Envelope)
+    final headTop = Offset(center.dx, center.dy - 165 * pulse);
+    final headLeft = Offset(center.dx - 32 * pulse, center.dy - 135 * pulse);
+    final headRight = Offset(center.dx + 32 * pulse, center.dy - 135 * pulse);
 
-    final lShoulder = Offset(center.dx - 55 * pulse, center.dy - 65 * pulse);
-    final rShoulder = Offset(center.dx + 55 * pulse, center.dy - 65 * pulse);
+    final lShoulderOuter = Offset(center.dx - 70 * pulse, center.dy - 65 * pulse);
+    final rShoulderOuter = Offset(center.dx + 70 * pulse, center.dy - 65 * pulse);
 
+    // Dynamic Arm Shifts
     double armDx = 0;
     double armDy = 0;
     if (phase == 'TOP') {
@@ -373,93 +370,68 @@ class LivePoseContourMeshPainter extends CustomPainter {
       armDy = 50 * pulse;
     }
 
-    final lElbow = Offset(center.dx - 80 * pulse + armDx, center.dy - 10 * pulse + armDy);
-    final rElbow = Offset(center.dx + 25 * pulse + armDx, center.dy - 10 * pulse + armDy);
-    final lWrist = Offset(center.dx - 60 * pulse + armDx * 1.2, center.dy + 45 * pulse + armDy);
-    final rWrist = Offset(center.dx + 10 * pulse + armDx * 1.2, center.dy + 45 * pulse + armDy);
+    final lElbowOuter = Offset(center.dx - 95 * pulse + armDx, center.dy - 10 * pulse + armDy);
+    final rElbowOuter = Offset(center.dx + 40 * pulse + armDx, center.dy - 10 * pulse + armDy);
+    final lHandTip = Offset(center.dx - 75 * pulse + armDx * 1.2, center.dy + 60 * pulse + armDy);
+    final rHandTip = Offset(center.dx + 25 * pulse + armDx * 1.2, center.dy + 60 * pulse + armDy);
 
-    final lHip = Offset(center.dx - 35 * pulse, center.dy + 45 * pulse);
-    final rHip = Offset(center.dx + 35 * pulse, center.dy + 45 * pulse);
+    final lWaistOuter = Offset(center.dx - 48 * pulse, center.dy + 40 * pulse);
+    final rWaistOuter = Offset(center.dx + 48 * pulse, center.dy + 40 * pulse);
 
-    final lKnee = Offset(center.dx - 40 * pulse, center.dy + 140 * pulse);
-    final rKnee = Offset(center.dx + 40 * pulse, center.dy + 140 * pulse);
-    final lAnkle = Offset(center.dx - 45 * pulse, center.dy + 230 * pulse);
-    final rAnkle = Offset(center.dx + 45 * pulse, center.dy + 230 * pulse);
+    final lKneeOuter = Offset(center.dx - 52 * pulse, center.dy + 140 * pulse);
+    final rKneeOuter = Offset(center.dx + 52 * pulse, center.dy + 140 * pulse);
 
-    // 1. Draw Smooth Body Outline Contour Path (신체 실루엣 곡선 윤곽선)
-    final Path bodyOutlinePath = Path();
+    final lFootOuter = Offset(center.dx - 65 * pulse, center.dy + 245 * pulse);
+    final lFootInner = Offset(center.dx - 15 * pulse, center.dy + 245 * pulse);
+    final rFootInner = Offset(center.dx + 15 * pulse, center.dy + 245 * pulse);
+    final rFootOuter = Offset(center.dx + 65 * pulse, center.dy + 245 * pulse);
 
-    // Head Oval Contour Curve
-    bodyOutlinePath.addOval(Rect.fromCircle(center: headCenter, radius: 28 * pulse));
+    final crotch = Offset(center.dx, center.dy + 65 * pulse);
 
-    // Torso & Legs Outer Silhouette Curve
-    bodyOutlinePath.moveTo(lShoulder.dx - 12, lShoulder.dy);
-    bodyOutlinePath.cubicTo(lShoulder.dx - 20, center.dy, lHip.dx - 15, lHip.dy, lHip.dx - 15, lHip.dy + 10);
-    bodyOutlinePath.cubicTo(lKnee.dx - 18, lKnee.dy, lAnkle.dx - 15, lAnkle.dy, lAnkle.dx - 10, lAnkle.dy + 10);
+    // Construct Pure Continuous Outer Body Contour Silhouette Path (사진 편집 누끼 윤곽선)
+    final Path contourPath = Path();
 
-    bodyOutlinePath.moveTo(rShoulder.dx + 12, rShoulder.dy);
-    bodyOutlinePath.cubicTo(rShoulder.dx + 20, center.dy, rHip.dx + 15, rHip.dy, rHip.dx + 15, rHip.dy + 10);
-    bodyOutlinePath.cubicTo(rKnee.dx + 18, rKnee.dy, rAnkle.dx + 15, rAnkle.dy, rAnkle.dx + 10, rAnkle.dy + 10);
+    // 1. Head Curve
+    contourPath.moveTo(headTop.dx, headTop.dy);
+    contourPath.cubicTo(headTop.dx - 25, headTop.dy, headLeft.dx, headLeft.dy - 10, headLeft.dx, headLeft.dy);
+    contourPath.quadraticBezierTo(headLeft.dx, headLeft.dy + 25, lShoulderOuter.dx + 15, lShoulderOuter.dy - 10);
 
-    // Arm Contour Curves
-    bodyOutlinePath.moveTo(lShoulder.dx, lShoulder.dy - 10);
-    bodyOutlinePath.quadraticBezierTo(lElbow.dx - 15, lElbow.dy, lWrist.dx - 10, lWrist.dy);
+    // 2. Left Arm Outer Edge
+    contourPath.quadraticBezierTo(lShoulderOuter.dx - 10, lShoulderOuter.dy, lShoulderOuter.dx, lShoulderOuter.dy);
+    contourPath.cubicTo(lShoulderOuter.dx - 15, lShoulderOuter.dy + 20, lElbowOuter.dx - 10, lElbowOuter.dy, lElbowOuter.dx, lElbowOuter.dy);
+    contourPath.cubicTo(lElbowOuter.dx - 10, lElbowOuter.dy + 25, lHandTip.dx - 12, lHandTip.dy - 10, lHandTip.dx, lHandTip.dy);
 
-    bodyOutlinePath.moveTo(rShoulder.dx, rShoulder.dy - 10);
-    bodyOutlinePath.quadraticBezierTo(rElbow.dx + 15, rElbow.dy, rWrist.dx + 10, rWrist.dy);
+    // 3. Hand Tip & Left Torso Side
+    contourPath.quadraticBezierTo(lHandTip.dx + 15, lHandTip.dy + 10, lWaistOuter.dx, lWaistOuter.dy);
+    contourPath.cubicTo(lWaistOuter.dx - 10, lWaistOuter.dy + 30, lKneeOuter.dx - 10, lKneeOuter.dy, lKneeOuter.dx, lKneeOuter.dy);
 
-    // Draw Contour Glow & Line
-    canvas.drawPath(bodyOutlinePath, contourGlowPaint);
-    canvas.drawPath(bodyOutlinePath, contourLinePaint);
+    // 4. Left Leg & Foot
+    contourPath.cubicTo(lKneeOuter.dx - 12, lKneeOuter.dy + 40, lFootOuter.dx - 15, lFootOuter.dy, lFootOuter.dx, lFootOuter.dy);
+    contourPath.lineTo(lFootInner.dx, lFootInner.dy);
+    contourPath.quadraticBezierTo(lFootInner.dx + 10, lFootInner.dy - 60, crotch.dx, crotch.dy);
 
-    // 2. Draw Internal Skeleton Bones & Spine Line
-    canvas.drawLine(neck, Offset(center.dx, center.dy + 45 * pulse), spinePaintStyle);
-    canvas.drawLine(lShoulder, rShoulder, skeletonBonePaint);
-    canvas.drawLine(lShoulder, lElbow, skeletonBonePaint);
-    canvas.drawLine(lElbow, lWrist, skeletonBonePaint);
-    canvas.drawLine(rShoulder, rElbow, skeletonBonePaint);
-    canvas.drawLine(rElbow, rWrist, skeletonBonePaint);
-    canvas.drawLine(lHip, rHip, skeletonBonePaint);
-    canvas.drawLine(lHip, lKnee, skeletonBonePaint);
-    canvas.drawLine(lKnee, lAnkle, skeletonBonePaint);
-    canvas.drawLine(rHip, rKnee, skeletonBonePaint);
-    canvas.drawLine(rKnee, rAnkle, skeletonBonePaint);
+    // 5. Right Leg & Foot
+    contourPath.quadraticBezierTo(rFootInner.dx - 10, rFootInner.dy - 60, rFootInner.dx, rFootInner.dy);
+    contourPath.lineTo(rFootOuter.dx, rFootOuter.dy);
+    contourPath.cubicTo(rFootOuter.dx + 15, rFootOuter.dy, rKneeOuter.dx + 12, rKneeOuter.dy + 40, rKneeOuter.dx, rKneeOuter.dy);
 
-    // 3. Draw Swing Arc Trajectory Curve (손목 궤적 아크 곡선)
-    final Path swingArcPath = Path();
-    swingArcPath.moveTo(lWrist.dx - 80, lWrist.dy + 20);
-    swingArcPath.quadraticBezierTo(center.dx + 100, center.dy - 160, rWrist.dx + 60, rWrist.dy + 40);
-    canvas.drawPath(
-      swingArcPath,
-      Paint()
-        ..color = Colors.amber.withOpacity(0.5)
-        ..strokeWidth = 2.0
-        ..style = PaintingStyle.stroke,
-    );
+    // 6. Right Torso Side & Right Arm Outer Edge
+    contourPath.cubicTo(rKneeOuter.dx + 10, rKneeOuter.dy, rWaistOuter.dx + 10, rWaistOuter.dy + 30, rWaistOuter.dx, rWaistOuter.dy);
+    contourPath.quadraticBezierTo(rHandTip.dx - 15, rHandTip.dy + 10, rHandTip.dx, rHandTip.dy);
+    contourPath.cubicTo(rHandTip.dx + 12, rHandTip.dy - 10, rElbowOuter.dx + 10, rElbowOuter.dy + 25, rElbowOuter.dx, rElbowOuter.dy);
+    contourPath.cubicTo(rElbowOuter.dx + 10, rElbowOuter.dy, rShoulderOuter.dx + 15, rShoulderOuter.dy + 20, rShoulderOuter.dx, rShoulderOuter.dy);
 
-    // 4. Draw Joint Dots & Angle Tags
-    final joints = [headCenter, neck, lShoulder, rShoulder, lElbow, rElbow, lWrist, rWrist, lHip, rHip, lKnee, rKnee, lAnkle, rAnkle];
-    for (var joint in joints) {
-      canvas.drawCircle(joint, 5, jointDotPaint);
-      canvas.drawCircle(joint, 7, Paint()..color = Colors.cyanAccent.withOpacity(0.5)..style = PaintingStyle.stroke..strokeWidth = 1.5);
-    }
+    // 7. Right Neck Back to Head Top
+    contourPath.quadraticBezierTo(rShoulderOuter.dx - 15, rShoulderOuter.dy - 10, headRight.dx, headRight.dy);
+    contourPath.cubicTo(headRight.dx, headRight.dy - 10, headTop.dx + 25, headTop.dy, headTop.dx, headTop.dy);
+    contourPath.close();
 
-    // Lead Elbow Live Angle Label
-    final TextPainter textPainter = TextPainter(
-      text: const TextSpan(
-        text: '151°',
-        style: TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(lElbow.dx - 30, lElbow.dy - 15));
+    // Render Silhouette Fill Layer & Glowing Contour Mask
+    canvas.drawPath(contourPath, silhouetteFillPaint);
+    canvas.drawPath(contourPath, contourGlowPaint);
+    canvas.drawPath(contourPath, contourOutlinePaint);
   }
 
-  Paint get spinePaintStyle => Paint()
-    ..color = Colors.cyanAccent
-    ..strokeWidth = 3.5;
-
   @override
-  bool shouldRepaint(covariant LivePoseContourMeshPainter oldDelegate) => true;
+  bool shouldRepaint(covariant PureBodyContourPainter oldDelegate) => true;
 }
