@@ -20,6 +20,36 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
 
   final List<String> _clubs = ['Driver', '3W', '5i', '7i', '9i', 'PW', 'SW'];
 
+  Widget _buildHighContrastChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return ChoiceChip(
+      label: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white90,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            fontSize: 14,
+          ),
+        ),
+      ),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: Colors.teal,
+      backgroundColor: const Color(0xFF2C2C2C),
+      side: BorderSide(
+        color: selected ? Colors.tealAccent : Colors.grey.shade700,
+        width: selected ? 1.5 : 1.0,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      showCheckmark: false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<SwingProvider>(context);
@@ -39,28 +69,35 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
               height: 180,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.grey.shade900,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.teal.shade700),
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.teal.shade600, width: 1.5),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.movie_creation_outlined, size: 48, color: Colors.teal),
+                  const Icon(Icons.movie_creation_outlined, size: 48, color: Colors.tealAccent),
                   const SizedBox(height: 12),
                   Text(
                     _videoPath != null ? 'Selected: golf_sample.mp4' : 'Select Video File',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 8),
                   ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Demo video selected.')),
                       );
                     },
-                    icon: const Icon(Icons.file_upload),
-                    label: Text(LocalizationService.tr('select_video_btn', lang)),
+                    icon: const Icon(Icons.file_upload, color: Colors.white),
+                    label: Text(
+                      LocalizationService.tr('select_video_btn', lang),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -68,65 +105,73 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
             const SizedBox(height: 24),
 
             // Orientation Selection
-            Text(LocalizationService.tr('select_orientation', lang), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
+            Text(
+              LocalizationService.tr('select_orientation', lang),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: ChoiceChip(
-                    label: Center(child: Text(LocalizationService.tr('face_on', lang))),
+                  child: _buildHighContrastChip(
+                    label: LocalizationService.tr('face_on', lang),
                     selected: _selectedView == SwingView.faceOn,
-                    onSelected: (val) => setState(() => _selectedView = SwingView.faceOn),
+                    onSelected: () => setState(() => _selectedView = SwingView.faceOn),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ChoiceChip(
-                    label: Center(child: Text(LocalizationService.tr('rear', lang))),
+                  child: _buildHighContrastChip(
+                    label: LocalizationService.tr('rear', lang),
                     selected: _selectedView == SwingView.rear,
-                    onSelected: (val) => setState(() => _selectedView = SwingView.rear),
+                    onSelected: () => setState(() => _selectedView = SwingView.rear),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             // Handedness Selection
-            Text(LocalizationService.tr('handedness', lang), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
+            Text(
+              LocalizationService.tr('handedness', lang),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: ChoiceChip(
-                    label: Center(child: Text(LocalizationService.tr('right_handed', lang))),
+                  child: _buildHighContrastChip(
+                    label: LocalizationService.tr('right_handed', lang),
                     selected: _selectedHandedness == Handedness.right,
-                    onSelected: (val) => setState(() => _selectedHandedness = Handedness.right),
+                    onSelected: () => setState(() => _selectedHandedness = Handedness.right),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ChoiceChip(
-                    label: Center(child: Text(LocalizationService.tr('left_handed', lang))),
+                  child: _buildHighContrastChip(
+                    label: LocalizationService.tr('left_handed', lang),
                     selected: _selectedHandedness == Handedness.left,
-                    onSelected: (val) => setState(() => _selectedHandedness = Handedness.left),
+                    onSelected: () => setState(() => _selectedHandedness = Handedness.left),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             // Club Selection
-            Text(LocalizationService.tr('club_used', lang), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
+            Text(
+              LocalizationService.tr('club_used', lang),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+            ),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 8,
+              spacing: 10,
+              runSpacing: 10,
               children: _clubs.map((club) {
-                return ChoiceChip(
-                  label: Text(club),
+                return _buildHighContrastChip(
+                  label: club,
                   selected: _selectedClub == club,
-                  onSelected: (selected) {
-                    if (selected) setState(() => _selectedClub = club);
-                  },
+                  onSelected: () => setState(() => _selectedClub = club),
                 );
               }).toList(),
             ),
@@ -134,11 +179,13 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
 
             SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 52,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
                 ),
                 onPressed: () {
                   provider.createNewSwing(
@@ -153,7 +200,10 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
                     MaterialPageRoute(builder: (context) => const OcrInputScreen()),
                   );
                 },
-                child: Text(LocalizationService.tr('next_ocr', lang), style: const TextStyle(fontSize: 15, color: Colors.white)),
+                child: Text(
+                  LocalizationService.tr('next_ocr', lang),
+                  style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
