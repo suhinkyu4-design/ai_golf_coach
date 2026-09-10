@@ -31,7 +31,7 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.white90,
+            color: selected ? Colors.white : Colors.white.withOpacity(0.9),
             fontWeight: selected ? FontWeight.bold : FontWeight.w500,
             fontSize: 14,
           ),
