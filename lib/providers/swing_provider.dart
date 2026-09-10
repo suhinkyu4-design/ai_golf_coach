@@ -2,22 +2,34 @@ import 'package:flutter/foundation.dart';
 import '../models/swing_model.dart';
 import '../models/shot_measurement_model.dart';
 import '../models/analysis_result_model.dart';
-import '../models/metric_model.dart';
 import '../services/rule_engine.dart';
 import '../services/slm_template_service.dart';
+import '../services/localization_service.dart';
 
 class SwingProvider extends ChangeNotifier {
+  AppLanguage _appLanguage = AppLanguage.korean;
   SwingModel? _currentSwing;
   ShotMeasurementModel? _currentShotMeasurement;
   AnalysisResultModel? _currentAnalysisResult;
-  List<SwingModel> _swingHistory = [];
+  final List<SwingModel> _swingHistory = [];
   bool _isAnalyzing = false;
 
+  AppLanguage get appLanguage => _appLanguage;
   SwingModel? get currentSwing => _currentSwing;
   ShotMeasurementModel? get currentShotMeasurement => _currentShotMeasurement;
   AnalysisResultModel? get currentAnalysisResult => _currentAnalysisResult;
   List<SwingModel> get swingHistory => _swingHistory;
   bool get isAnalyzing => _isAnalyzing;
+
+  void toggleLanguage() {
+    _appLanguage = _appLanguage == AppLanguage.korean ? AppLanguage.english : AppLanguage.korean;
+    // Re-run summary text update if an analysis result exists
+    if (_currentAnalysisResult != null && _currentSwing != null) {
+      runAnalysis();
+    } else {
+      notifyListeners();
+    }
+  }
 
   void createNewSwing({
     required String videoPath,
@@ -66,6 +78,7 @@ class SwingProvider extends ChangeNotifier {
       handedness: _currentSwing!.handedness,
       rawValues: rawValues,
       eventTimestamps: _currentSwing!.eventsMs,
+      language: _appLanguage,
     );
 
     final summary = SlmTemplateService.generateConstrainedSummary(
@@ -73,6 +86,7 @@ class SwingProvider extends ChangeNotifier {
       allowedDrills: ruleResult.allowedDrills,
       metrics: ruleResult.evaluatedMetrics,
       shotData: _currentShotMeasurement,
+      language: _appLanguage,
     );
 
     _currentAnalysisResult = AnalysisResultModel(
@@ -88,7 +102,7 @@ class SwingProvider extends ChangeNotifier {
       primaryDrillDescription: summary['primary_drill_description']!,
     );
 
-    if (_currentSwing != null) {
+    if (!_swingHistory.contains(_currentSwing!)) {
       _swingHistory.add(_currentSwing!);
     }
 

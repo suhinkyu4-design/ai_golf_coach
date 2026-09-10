@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/swing_provider.dart';
 import '../services/ocr_service.dart';
+import '../services/localization_service.dart';
 import 'analysis_result_screen.dart';
 
 class OcrInputScreen extends StatefulWidget {
@@ -37,25 +38,26 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<SwingProvider>(context);
+    final lang = provider.appLanguage;
     final shotData = provider.currentShotMeasurement;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('스크린 결과 OCR 연동'),
+        title: Text(LocalizationService.tr('ocr_title', lang)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAlignment.start,
           children: [
-            const Text(
-              '스크린 타석 결과 캡처 이미지',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              LocalizationService.tr('ocr_title', lang),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '볼스피드, 헤드스피드, 비거리가 포함된 모니터 화면 사진을 추가하면 동작과 통합 분석합니다.',
-              style: TextStyle(color: Colors.grey),
+            Text(
+              LocalizationService.tr('ocr_desc', lang),
+              style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 20),
 
@@ -64,7 +66,7 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _runDemoOcr,
                   icon: const Icon(Icons.document_scanner),
-                  label: const Text('스크린 캡처 OCR 자동 분석 실행'),
+                  label: Text(LocalizationService.tr('ocr_btn', lang)),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   ),
@@ -77,18 +79,18 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.check_circle, color: Colors.teal),
-                          SizedBox(width: 8),
-                          Text('OCR 추출 성공', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const Icon(Icons.check_circle, color: Colors.teal),
+                          const SizedBox(width: 8),
+                          Text(LocalizationService.tr('ocr_success', lang), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         ],
                       ),
                       const Divider(height: 24),
-                      Text('볼 스피드: ${shotData.ballSpeedMs} m/s (${shotData.ballSpeedMph?.toStringAsFixed(1)} mph)'),
-                      Text('클럽 스피드: ${shotData.clubSpeedMs} m/s (${shotData.clubSpeedMph?.toStringAsFixed(1)} mph)'),
-                      Text('스매시 팩터 (Smash Factor): ${shotData.calculatedSmashFactor}'),
-                      Text('캐리 거리: ${shotData.carryDistanceMeters} m (${shotData.carryYards?.toStringAsFixed(1)} yd)'),
+                      Text('${LocalizationService.tr('ball_speed', lang)}: ${shotData.ballSpeedMs} m/s (${shotData.ballSpeedMph?.toStringAsFixed(1)} mph)'),
+                      Text('${LocalizationService.tr('club_speed', lang)}: ${shotData.clubSpeedMs} m/s (${shotData.clubSpeedMph?.toStringAsFixed(1)} mph)'),
+                      Text('${LocalizationService.tr('smash_factor', lang)}: ${shotData.calculatedSmashFactor}'),
+                      Text('${LocalizationService.tr('carry_dist', lang)}: ${shotData.carryDistanceMeters} m (${shotData.carryYards?.toStringAsFixed(1)} yd)'),
                     ],
                   ),
                 ),
@@ -113,7 +115,7 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
                     );
                   }
                 },
-                child: const Text('통합 분석 시작', style: TextStyle(fontSize: 16, color: Colors.white)),
+                child: Text(LocalizationService.tr('start_analysis', lang), style: const TextStyle(fontSize: 16, color: Colors.white)),
               ),
             ),
           ],

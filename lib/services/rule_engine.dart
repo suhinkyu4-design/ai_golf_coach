@@ -1,5 +1,6 @@
 import '../models/metric_model.dart';
 import '../models/swing_model.dart';
+import 'localization_service.dart';
 
 class RuleEvaluationResult {
   final List<String> allowedObservations;
@@ -20,7 +21,9 @@ class RuleEngine {
     required Handedness handedness,
     required Map<String, double> rawValues,
     required Map<String, int> eventTimestamps,
+    AppLanguage language = AppLanguage.korean,
   }) {
+    final bool isEn = language == AppLanguage.english;
     final List<MetricModel> metrics = [];
     final List<String> observations = [];
     final List<String> drills = [];
@@ -31,7 +34,7 @@ class RuleEngine {
       final isBent = leadElbowTop < 140.0;
       metrics.add(MetricModel(
         id: 'lead_elbow_projected_at_top',
-        name: '탑 위치 리드 팔 굽힘각',
+        name: isEn ? 'Lead Elbow Flexion at Top' : '탑 위치 리드 팔 굽힘각',
         value: double.parse(leadElbowTop.toStringAsFixed(1)),
         unit: 'deg',
         status: MetricStatus.usable,
@@ -56,7 +59,7 @@ class RuleEngine {
 
       metrics.add(MetricModel(
         id: 'swing_tempo_ratio',
-        name: '스윙 템포 비율 (백스윙/다운스윙)',
+        name: isEn ? 'Swing Tempo Ratio (Backswing/Downswing)' : '스윙 템포 비율 (백스윙/다운스윙)',
         value: tempoRatio,
         unit: 'ratio',
         status: MetricStatus.usable,
@@ -78,7 +81,7 @@ class RuleEngine {
       final double tiltDiff = (spineTiltTop - spineTiltAddress).abs();
       metrics.add(MetricModel(
         id: 'upper_body_tilt_change',
-        name: '상체 기울기 변화량',
+        name: isEn ? 'Spine Tilt Change' : '상체 기울기 변화량',
         value: double.parse(tiltDiff.toStringAsFixed(1)),
         unit: 'deg',
         status: MetricStatus.usable,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/swing_provider.dart';
+import '../services/localization_service.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -8,14 +9,18 @@ class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<SwingProvider>(context);
+    final lang = provider.appLanguage;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('스윙 분석 기록'),
+        title: Text(LocalizationService.tr('recent_history', lang)),
       ),
       body: provider.swingHistory.isEmpty
-          ? const Center(
-              child: Text('저장된 스윙 분석 기록이 없습니다.', style: TextStyle(color: Colors.grey)),
+          ? Center(
+              child: Text(
+                LocalizationService.tr('no_history', lang),
+                style: const TextStyle(color: Colors.grey),
+              ),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -29,7 +34,7 @@ class HistoryScreen extends StatelessWidget {
                       backgroundColor: Colors.teal,
                       child: Icon(Icons.sports_golf, color: Colors.white),
                     ),
-                    title: Text('${swing.club} 스윙 (${swing.view.name})'),
+                    title: Text('${swing.club} Swing (${swing.view.name})'),
                     subtitle: Text(swing.createdAt.toString().split('.')[0]),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   ),

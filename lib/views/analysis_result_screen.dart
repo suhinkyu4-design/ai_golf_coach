@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/swing_provider.dart';
+import '../services/localization_service.dart';
 
 class AnalysisResultScreen extends StatelessWidget {
   const AnalysisResultScreen({super.key});
@@ -8,20 +9,34 @@ class AnalysisResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<SwingProvider>(context);
+    final lang = provider.appLanguage;
     final result = provider.currentAnalysisResult;
     final swing = provider.currentSwing;
     final shotData = provider.currentShotMeasurement;
 
     if (result == null || swing == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('분석 결과')),
+        appBar: AppBar(title: Text(LocalizationService.tr('analysis_result_title', lang))),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('스윙 분석 결과'),
+        title: Text(LocalizationService.tr('analysis_result_title', lang)),
+        actions: [
+          // Language Switch Toggle Button
+          TextButton.icon(
+            onPressed: () {
+              provider.toggleLanguage();
+            },
+            icon: const Icon(Icons.language, color: Colors.tealAccent, size: 20),
+            label: Text(
+              lang == AppLanguage.korean ? '🇰🇷 KR' : '🇺🇸 EN',
+              style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -42,12 +57,12 @@ class AnalysisResultScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAlignment.start,
                     children: [
-                      Text('${swing.club} 클럽 스윙', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text('촬영 방향: ${swing.view.name} | ${swing.handedness.name}'),
+                      Text('${swing.club} Swing', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${LocalizationService.tr('select_orientation', lang)}: ${swing.view.name} | ${swing.handedness.name}'),
                     ],
                   ),
                   Chip(
-                    label: Text('버전 ${result.schemaVersion}'),
+                    label: Text('Schema ${result.schemaVersion}'),
                     backgroundColor: Colors.teal.withOpacity(0.2),
                   ),
                 ],
@@ -55,8 +70,8 @@ class AnalysisResultScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // AI Korean Coaching Summary Box
-            const Text('핵심 관찰 요약', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            // AI Korean/English Coaching Summary Box
+            Text(LocalizationService.tr('key_summary', lang), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
@@ -74,7 +89,7 @@ class AnalysisResultScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Measured Key Metrics Table
-            const Text('측정 수치 리포트', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(LocalizationService.tr('metrics_report', lang), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Card(
               child: Column(
@@ -82,7 +97,7 @@ class AnalysisResultScreen extends StatelessWidget {
                   ...result.metrics.map((metric) {
                     return ListTile(
                       title: Text(metric.name),
-                      subtitle: Text('근거 타임스탬프: ${metric.evidenceTimeMs.join(', ')} ms'),
+                      subtitle: Text('Evidence ms: ${metric.evidenceTimeMs.join(', ')} ms'),
                       trailing: Text(
                         '${metric.value} ${metric.unit}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal),
@@ -91,8 +106,8 @@ class AnalysisResultScreen extends StatelessWidget {
                   }),
                   if (shotData != null && shotData.calculatedSmashFactor != null)
                     ListTile(
-                      title: const Text('스매시 팩터 (Smash Factor)'),
-                      subtitle: const Text('볼 스피드 ÷ 헤드 스피드'),
+                      title: Text(LocalizationService.tr('smash_factor', lang)),
+                      subtitle: const Text('Ball Speed ÷ Club Speed'),
                       trailing: Text(
                         '${shotData.calculatedSmashFactor}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber),
@@ -104,7 +119,7 @@ class AnalysisResultScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Actionable Drill Recommendation Card
-            const Text('다음 연습 한 가지 (Recommended Drill)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(LocalizationService.tr('recommended_drill', lang), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(16),
@@ -120,9 +135,11 @@ class AnalysisResultScreen extends StatelessWidget {
                     children: [
                       const Icon(Icons.fitness_center, color: Colors.amber),
                       const SizedBox(width: 8),
-                      Text(
-                        result.primaryDrillTitle,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber),
+                      Expanded(
+                        child: Text(
+                          result.primaryDrillTitle,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber),
+                        ),
                       ),
                     ],
                   ),
@@ -144,7 +161,7 @@ class AnalysisResultScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.popUntil(context, (route) => route.isFirst);
                 },
-                child: const Text('홈으로 돌아가기', style: TextStyle(color: Colors.white, fontSize: 16)),
+                child: Text(LocalizationService.tr('back_to_home', lang), style: const TextStyle(color: Colors.white, fontSize: 16)),
               ),
             ),
           ],
