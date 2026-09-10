@@ -64,40 +64,117 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
         child: Column(
           crossAxisAlignment: CrossAlignment.start,
           children: [
-            // Video Select Box
+            // Video Select Box with Camera Shoot & Demo Video Selection
             Container(
-              height: 180,
+              padding: const EdgeInsets.all(16),
               width: double.infinity,
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.teal.shade600, width: 1.5),
+                border: Border.all(
+                  color: _videoPath != null ? Colors.tealAccent : Colors.teal.shade600,
+                  width: 2.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.15),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.movie_creation_outlined, size: 48, color: Colors.tealAccent),
-                  const SizedBox(height: 12),
-                  Text(
-                    _videoPath != null ? 'Selected: golf_sample.mp4' : 'Select Video File',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  Icon(
+                    _videoPath != null ? Icons.check_circle_rounded : Icons.movie_creation_outlined,
+                    size: 48,
+                    color: _videoPath != null ? Colors.tealAccent : Colors.white70,
                   ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
+                  const SizedBox(height: 10),
+                  Text(
+                    _videoPath != null
+                        ? (lang == AppLanguage.korean
+                            ? '✅ 데모 비디오 선택 완료 (golf_sample.mp4)'
+                            : '✅ Selected: golf_sample.mp4')
+                        : (lang == AppLanguage.korean ? '스윙 비디오 선택 또는 촬영' : 'Select or Record Swing Video'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: _videoPath != null ? Colors.tealAccent : Colors.white,
                     ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Demo video selected.')),
-                      );
-                    },
-                    icon: const Icon(Icons.file_upload, color: Colors.white),
-                    label: Text(
-                      LocalizationService.tr('select_video_btn', lang),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Camera Shoot Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _videoPath = '/storage/emulated/0/Download/golf_sample.mp4';
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  lang == AppLanguage.korean
+                                      ? '📹 촬영 완료! 데모 스윙 비디오(golf_sample.mp4)가 선택되었습니다.'
+                                      : '📹 Recording Complete! Demo video (golf_sample.mp4) selected.',
+                                ),
+                                backgroundColor: Colors.teal,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.videocam_rounded, color: Colors.white, size: 20),
+                          label: Text(
+                            lang == AppLanguage.korean ? '카메라 촬영' : 'Shoot Video',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Demo Video Select Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _videoPath = '/storage/emulated/0/Download/golf_sample.mp4';
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  lang == AppLanguage.korean
+                                      ? '🎬 데모 스윙 비디오(golf_sample.mp4)가 선택되었습니다.'
+                                      : '🎬 Demo swing video (golf_sample.mp4) selected.',
+                                ),
+                                backgroundColor: Colors.teal,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 20),
+                          label: Text(
+                            lang == AppLanguage.korean ? '데모 비디오 선택' : 'Select Demo',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
