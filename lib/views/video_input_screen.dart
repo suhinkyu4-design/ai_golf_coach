@@ -4,7 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/swing_model.dart';
 import '../providers/swing_provider.dart';
 import '../services/localization_service.dart';
-import 'ocr_input_screen.dart';
+import 'pose_trimming_screen.dart';
 
 class VideoInputScreen extends StatefulWidget {
   const VideoInputScreen({super.key});
@@ -137,6 +137,7 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<SwingProvider>(context);
     final lang = provider.appLanguage;
+    final isEn = lang == AppLanguage.english;
 
     return Scaffold(
       appBar: AppBar(
@@ -344,11 +345,11 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
 
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const OcrInputScreen()),
+                    MaterialPageRoute(builder: (context) => const PoseTrimmingScreen()),
                   );
                 },
                 child: Text(
-                  LocalizationService.tr('next_ocr', lang),
+                  isEn ? 'Next: Trimming & Key Event Markers' : '다음: 구간 자르기 및 4대 이벤트 확인',
                   style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
