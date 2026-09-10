@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/swing_model.dart';
 import '../providers/swing_provider.dart';
 import '../services/localization_service.dart';
 import 'pose_trimming_screen.dart';
