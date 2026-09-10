@@ -4,6 +4,10 @@
 .pub-cache/
 .pub/
 build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.zip
+verification.json
 
 # Android
 *.apk

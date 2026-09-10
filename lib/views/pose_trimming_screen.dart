@@ -1,205 +1,304 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import '../widgets/golf_widgets.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import '../providers/swing_provider.dart';
-import '../services/localization_service.dart';
 import 'ocr_input_screen.dart';
 
 class PoseTrimmingScreen extends StatefulWidget {
   const PoseTrimmingScreen({super.key});
-
   @override
   State<PoseTrimmingScreen> createState() => _PoseTrimmingScreenState();
 }
 
 class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
-  RangeValues _trimRange = const RangeValues(200, 2800);
-  int _addressMs = 200;
-  int _topMs = 1200;
-  int _impactMs = 1510;
-  int _finishMs = 2800;
+  VideoPlayerController? _player;
+  String? _error;
+  String _poseStatus = '저장된 관절 좌표 없음';
+  String _path = '';
+  int _duration = 0;
+  RangeValues _range = const RangeValues(0, 1);
+  final Map<String, int> _events = {};
+  List<Map<String, dynamic>> _samples = [];
+  bool _overlay = false, _saving = false, _seeking = false;
+  int _offset = 0;
+  static const _labels = {
+    'address': '어드레스', 'top': '백스윙 탑',
+    'impact': '임팩트 추정', 'finish': '피니시',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final swing = context.read<SwingProvider>().currentSwing;
+      if (swing == null) throw StateError('선택한 영상이 없습니다.');
+      _path = swing.videoPath;
+      if (!await File(_path).exists()) throw StateError('영상 파일을 찾을 수 없습니다.');
+      if (!mounted) return;
+      final player = VideoPlayerController.file(File(_path));
+      _player = player;
+      await player.initialize();
+      if (!mounted) return;
+      _duration = player.value.duration.inMilliseconds;
+      if (_duration <= 0) throw StateError('영상 길이를 확인할 수 없습니다.');
+      _range = RangeValues(0, _duration.toDouble());
+      await _loadPose();
+      await _loadReview();
+      if (!mounted) return;
+      player.addListener(_tick);
+      setState(() {});
+    } catch (e) {
+      if (mounted) setState(() => _error = '영상을 열지 못했습니다.\n$e');
+    }
+  }
+
+  Future<void> _loadPose() async {
+    final file = File('$_path.pose.json');
+    if (!await file.exists()) return;
+    try {
+      if (await file.length() > 20 * 1024 * 1024) {
+        throw const FormatException('관절 기록 파일이 너무 큽니다.');
+      }
+      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      if (data['source'] != 'mlkit_pose_detection' ||
+          data['coordinate_space'] != 'upright_image_pixels') {
+        throw const FormatException('지원하지 않는 좌표 형식');
+      }
+      final raw = data['samples'] as List;
+      if (raw.length > 20000) throw const FormatException('기록 개수 초과');
+      _samples = raw.map((e) => Map<String, dynamic>.from(e as Map)).where((s) {
+        final t = s['t_ms'], w = s['width'], h = s['height'];
+        return t is int && t >= 0 && w is num && h is num &&
+          w.isFinite && h.isFinite && w > 0 && h > 0 && s['landmarks'] is List;
+      }).toList()..sort((a, b) => (a['t_ms'] as int).compareTo(b['t_ms'] as int));
+      _poseStatus = _samples.isEmpty ? '사용 가능한 관절 기록 없음' :
+        '관절 기록 ${_samples.length}개 · 영상과 시간 근사 정렬';
+    } catch (_) {
+      _samples = [];
+      _poseStatus = '관절 기록을 읽을 수 없습니다. 영상 확인은 가능합니다.';
+    }
+  }
+
+  Future<void> _loadReview() async {
+    try {
+      final file = File('$_path.review.json');
+      if (!await file.exists() || await file.length() > 65536) return;
+      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      if (data['event_source'] != 'manual_video_review' || data['duration_ms'] != _duration) return;
+      final start = data['trim_start_ms'] as int;
+      final end = data['trim_end_ms'] as int;
+      final events = Map<String, int>.from(data['events_ms'] as Map);
+      if (start < 0 || end > _duration || start >= end) return;
+      int previous = -1;
+      for (final key in _labels.keys) {
+        final t = events[key];
+        if (t == null || t < start || t > end || t <= previous) return;
+        previous = t;
+      }
+      _range = RangeValues(start.toDouble(), end.toDouble());
+      _events.addAll(events);
+    } catch (_) {
+      // An invalid or legacy review must never become measured event data.
+    }
+  }
+
+  void _tick() {
+    if (!mounted) return;
+    final p = _player!;
+    if (p.value.hasError) {
+      setState(() => _error = p.value.errorDescription ?? '영상 재생 오류');
+      return;
+    }
+    if (p.value.isPlaying && p.value.position.inMilliseconds >= _range.end) {
+      p.pause();
+    }
+    setState(() {});
+  }
+
+  Future<void> _seek(int ms) async {
+    if (_seeking || _saving) return;
+    setState(() => _seeking = true);
+    try {
+      await _player!.pause();
+      await _player!.seekTo(Duration(milliseconds: ms.clamp(0, _duration).toInt()));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('시간 이동 실패: $e')));
+    } finally {
+      if (mounted) setState(() => _seeking = false);
+    }
+  }
+
+  bool get _valid {
+    if (_range.start >= _range.end) return false;
+    int previous = -1;
+    for (final key in _labels.keys) {
+      final t = _events[key];
+      if (t == null || t < _range.start || t > _range.end || t <= previous) return false;
+      previous = t;
+    }
+    return true;
+  }
+
+  Map<String, dynamic>? get _sample {
+    if (!_overlay || _samples.isEmpty) return null;
+    final target = _player!.value.position.inMilliseconds + _offset;
+    int lo = 0, hi = _samples.length;
+    while (lo < hi) {
+      final mid = (lo + hi) ~/ 2;
+      if ((_samples[mid]['t_ms'] as int) < target) { lo = mid + 1; } else { hi = mid; }
+    }
+    var index = lo == _samples.length ? lo - 1 : lo;
+    if (index > 0 && ((_samples[index - 1]['t_ms'] as int) - target).abs() <
+        ((_samples[index]['t_ms'] as int) - target).abs()) index--;
+    final s = _samples[index];
+    final ratio = (s['width'] as num) / (s['height'] as num);
+    if (((s['t_ms'] as int) - target).abs() > 150 || s['detected'] != true ||
+        (ratio / _player!.value.aspectRatio - 1).abs() > .05) return null;
+    return s;
+  }
+
+  Future<void> _save() async {
+    if (!_valid || _saving || _seeking) return;
+    setState(() => _saving = true);
+    try {
+      await _player!.pause();
+      await File('$_path.review.json').writeAsString(jsonEncode({
+        'schema_version': '1.0', 'event_source': 'manual_video_review',
+        'duration_ms': _duration, 'trim_start_ms': _range.start.round(),
+        'trim_end_ms': _range.end.round(), 'events_ms': _events,
+        'pose_overlay_offset_ms': _offset, 'pose_video_pts_synchronized': false,
+      }), flush: true);
+      if (!mounted) return;
+      context.read<SwingProvider>().updateVideoReview(durationMs: _duration, eventsMs: _events);
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const OcrInputScreen()));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 또는 화면 이동 실패: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _player?.removeListener(_tick);
+    _player?.dispose();
+    super.dispose();
+  }
+
+  String _time(num ms) => '${(ms / 1000).toStringAsFixed(3)}초';
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<SwingProvider>(context);
-    final lang = provider.appLanguage;
-    final isEn = lang == AppLanguage.english;
-    final swing = provider.currentSwing;
-
+    final p = _player;
+    final ready = p != null && p.value.isInitialized && _duration > 0;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEn ? 'Swing Trimming & Events' : '스윙 구간 및 이벤트 확인'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Skeleton Overlay Video Preview Placeholder
-            Container(
-              height: 240,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.tealAccent, width: 2),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(Icons.sports_golf, size: 80, color: Colors.teal),
-                  // Skeleton Joints Simulation Overlay
-                  Positioned(
-                    top: 40,
-                    child: Column(
-                      children: [
-                        const CircleAvatar(radius: 8, backgroundColor: Colors.amber), // Head
-                        Container(width: 2, height: 40, color: Colors.tealAccent), // Spine
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(width: 30, height: 2, color: Colors.tealAccent), // Shoulders
-                            Container(width: 30, height: 2, color: Colors.tealAccent),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        isEn ? 'MediaPipe Pose Skeleton Overlay' : 'MediaPipe 포즈 스켈레톤 라이브 추적 중',
-                        style: const TextStyle(color: Colors.tealAccent, fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Trimming Slider Box
-            Text(
-              isEn ? '1. Swing Section Trimming (0.5s ~ 3s)' : '1. 스윙 구간 자르기 (어드레스 ~ 피니시)',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            RangeSlider(
-              values: _trimRange,
-              min: 0,
-              max: 3000,
-              divisions: 60,
-              activeColor: Colors.teal,
-              labels: RangeLabels(
-                '${(_trimRange.start / 1000).toStringAsFixed(1)}s',
-                '${(_trimRange.end / 1000).toStringAsFixed(1)}s',
-              ),
-              onChanged: (values) {
-                setState(() {
-                  _trimRange = values;
-                });
-              },
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${isEn ? 'Start' : '시작'}: ${(_trimRange.start / 1000).toStringAsFixed(2)}s',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                Text(
-                  '${isEn ? 'End' : '종료'}: ${(_trimRange.end / 1000).toStringAsFixed(2)}s',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // 4-Event Markers
-            Text(
-              isEn ? '2. Key Swing Events Frame Markers' : '2. 4대 스윙 구간 이벤트 타임스탬프',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    _buildEventRow(isEn ? 'Address Frame' : '어드레스 (Address)', _addressMs, (ms) => setState(() => _addressMs = ms)),
-                    const Divider(),
-                    _buildEventRow(isEn ? 'Top of Backswing' : '백스윙 탑 (Top)', _topMs, (ms) => setState(() => _topMs = ms)),
-                    const Divider(),
-                    _buildEventRow(isEn ? 'Estimated Impact' : '임팩트 추정 (Impact)', _impactMs, (ms) => setState(() => _impactMs = ms)),
-                    const Divider(),
-                    _buildEventRow(isEn ? 'Finish Hold' : '피니시 유지 (Finish)', _finishMs, (ms) => setState(() => _finishMs = ms)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
-
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () {
-                  if (swing != null) {
-                    swing.eventsMs['address'] = _addressMs;
-                    swing.eventsMs['top'] = _topMs;
-                    swing.eventsMs['impact'] = _impactMs;
-                    swing.eventsMs['finish'] = _finishMs;
-                  }
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const OcrInputScreen()),
-                  );
-                },
-                child: Text(
-                  isEn ? 'Next: Attach Screen OCR' : '다음: 스크린 샷 OCR 연동 (선택)',
-                  style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
+      appBar: AppBar(title: const Text('영상 및 스윙 구간 확인')),
+      body: _error != null ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(_error!))) :
+      !ready ? const Center(child: CircularProgressIndicator()) :
+      ListView(padding: const EdgeInsets.all(16), children: [
+        const GolfStepHeader(step: 2, title: '중요한 순간을 찾아보세요', description: '영상을 멈추고 어드레스부터 피니시까지 직접 지정합니다.'),
+        SizedBox(height: 320, child: Center(child: AspectRatio(
+          aspectRatio: p.value.aspectRatio,
+          child: ClipRect(child: Stack(fit: StackFit.expand, children: [
+            VideoPlayer(p),
+            IgnorePointer(child: CustomPaint(painter: _PosePainter(_sample))),
+          ])),
+        ))),
+        Text(_poseStatus),
+        if (_samples.isNotEmpty) ...[
+          SwitchListTile(contentPadding: EdgeInsets.zero,
+            title: const Text('참고용 관절 표시'),
+            subtitle: const Text('정밀 프레임 동기화 아님 · 검출 누락/화면 비율 불일치 시 숨김'),
+            value: _overlay, onChanged: (v) => setState(() => _overlay = v)),
+          if (_overlay) ...[
+            Text('관절 기록 시간 보정: $_offset ms'),
+            Slider(value: _offset.toDouble(), min: -1000, max: 1000, divisions: 200,
+              onChanged: (v) => setState(() => _offset = v.round())),
           ],
-        ),
-      ),
+        ],
+        Text('${_time(p.value.position.inMilliseconds)} / ${_time(_duration)}'),
+        Slider(value: p.value.position.inMilliseconds.clamp(0, _duration).toDouble(),
+          max: _duration.toDouble(), onChanged: _seeking || _saving ? null : (v) => _seek(v.round())),
+        Wrap(alignment: WrapAlignment.center, spacing: 8, children: [
+          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds - 50), child: const Text('−0.05초')),
+          IconButton(icon: Icon(p.value.isPlaying ? Icons.pause : Icons.play_arrow),
+            onPressed: _seeking || _saving ? null : () async {
+              if (p.value.isPlaying) { await p.pause(); return; }
+              if (p.value.position.inMilliseconds < _range.start || p.value.position.inMilliseconds >= _range.end) {
+                await _seek(_range.start.round());
+              }
+              if (mounted) await p.play();
+            }),
+          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds + 50), child: const Text('+0.05초')),
+          DropdownButton<double>(value: p.value.playbackSpeed,
+            items: [0.25, 0.5, 1.0].map((s) => DropdownMenuItem(value: s, child: Text('${s}x'))).toList(),
+            onChanged: (s) { if (s != null) p.setPlaybackSpeed(s); }),
+        ]),
+        const Text('1. 분석 구간 선택 (원본 영상은 자르지 않습니다)'),
+        RangeSlider(values: _range, max: _duration.toDouble(),
+          labels: RangeLabels(_time(_range.start), _time(_range.end)),
+          onChanged: _saving ? null : (v) { p.pause(); setState(() => _range = RangeValues(v.start.roundToDouble(), v.end.roundToDouble())); }),
+        Text('${_time(_range.start)} ~ ${_time(_range.end)}'),
+        const SizedBox(height: 16),
+        const Text('2. 영상을 멈추고 각 구간을 직접 지정하세요'),
+        const Text('시간 이동은 정확한 한 프레임 이동이 아닙니다. 임팩트는 육안 추정입니다.'),
+        for (final entry in _labels.entries)
+          Card(child: ListTile(
+            title: Text(entry.value),
+            subtitle: Text(_events[entry.key] == null ? '미지정' : _time(_events[entry.key]!)),
+            onTap: _events[entry.key] == null ? null : () => _seek(_events[entry.key]!),
+            trailing: TextButton(onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
+              setState(() => _events[entry.key] = p.value.position.inMilliseconds.clamp(0, _duration).toInt());
+            }, child: const Text('현재 위치 지정')),
+          )),
+        if (!_valid) const Text('선택 구간 안에서 어드레스 < 탑 < 임팩트 < 피니시 순으로 지정하세요.'),
+        const SizedBox(height: 12),
+        ElevatedButton(onPressed: _valid && !_saving && !_seeking ? _save : null,
+          child: Text(_saving ? '저장 중…' : '저장 후 스크린 기록 OCR로')),
+      ]),
     );
   }
+}
 
-  Widget _buildEventRow(String title, int timeMs, Function(int) onChange) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ),
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.remove_circle_outline, size: 20, color: Colors.grey),
-              onPressed: () => onChange((timeMs - 16).clamp(0, 3000)),
-            ),
-            Text('${timeMs} ms', style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold)),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.teal),
-              onPressed: () => onChange((timeMs + 16).clamp(0, 3000)),
-            ),
-          ],
-        ),
-      ],
-    );
+class _PosePainter extends CustomPainter {
+  final Map<String, dynamic>? sample;
+  _PosePainter(this.sample);
+  static const bones = [
+    ['leftShoulder','rightShoulder'], ['leftShoulder','leftElbow'],
+    ['leftElbow','leftWrist'], ['rightShoulder','rightElbow'],
+    ['rightElbow','rightWrist'], ['leftShoulder','leftHip'],
+    ['rightShoulder','rightHip'], ['leftHip','rightHip'],
+    ['leftHip','leftKnee'], ['leftKnee','leftAnkle'],
+    ['rightHip','rightKnee'], ['rightKnee','rightAnkle'],
+  ];
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = sample;
+    if (s == null) return;
+    final points = <String, Offset>{};
+    final width = (s['width'] as num).toDouble(), height = (s['height'] as num).toDouble();
+    for (final item in s['landmarks'] as List) {
+      if (item is! Map) continue;
+      final x = item['x'], y = item['y'], confidence = item['likelihood'];
+      if (item['name'] is! String || x is! num || y is! num || confidence is! num ||
+          !x.isFinite || !y.isFinite || !confidence.isFinite || confidence < .6 ||
+          x < 0 || y < 0 || x > width || y > height) continue;
+      points[item['name'] as String] = Offset(x / width * size.width, y / height * size.height);
+    }
+    final paint = Paint()..color = Colors.tealAccent..strokeWidth = 3;
+    for (final bone in bones) {
+      final a = points[bone[0]], b = points[bone[1]];
+      if (a != null && b != null) canvas.drawLine(a, b, paint);
+    }
+    for (final point in points.values) { canvas.drawCircle(point, 3, paint); }
   }
+  @override
+  bool shouldRepaint(covariant _PosePainter oldDelegate) => oldDelegate.sample != sample;
 }

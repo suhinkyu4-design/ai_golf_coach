@@ -1,172 +1,65 @@
 import 'package:flutter/material.dart';
+import '../widgets/golf_widgets.dart';
 import 'package:provider/provider.dart';
 import '../providers/swing_provider.dart';
-import '../services/localization_service.dart';
+import '../models/metric_model.dart';
+import '../models/shot_measurement_model.dart';
+import 'pose_trimming_screen.dart';
 
 class AnalysisResultScreen extends StatelessWidget {
   const AnalysisResultScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<SwingProvider>(context);
-    final lang = provider.appLanguage;
+    final provider = context.watch<SwingProvider>();
     final result = provider.currentAnalysisResult;
     final swing = provider.currentSwing;
-    final shotData = provider.currentShotMeasurement;
-
-    if (result == null || swing == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text(LocalizationService.tr('analysis_result_title', lang))),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
+    final shot = provider.currentShotMeasurement;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(LocalizationService.tr('analysis_result_title', lang)),
-        actions: [
-          // Language Switch Toggle Button
-          TextButton.icon(
-            onPressed: () {
-              provider.toggleLanguage();
-            },
-            icon: const Icon(Icons.language, color: Colors.tealAccent, size: 20),
-            label: Text(
-              lang == AppLanguage.korean ? '🇰🇷 KR' : '🇺🇸 EN',
-              style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold),
-            ),
+      appBar: AppBar(title: const Text('스윙 기록 결과')),
+      body: result == null || swing == null
+        ? const Center(child: Text('표시할 결과가 없습니다. 영상 구간을 확인한 뒤 다시 진행하세요.'))
+        : ListView(padding: const EdgeInsets.all(20), children: [
+          const GolfStepHeader(step: 4, title: '이번 스윙의 기록', description: '영상에서 지정한 시간과 확인한 샷 수치를 함께 봅니다.'),
+          Text('${swing.club} · ${swing.view.name} · ${swing.handedness.name}',
+            style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(result.koreanSummary))),
+          const SizedBox(height: 16), const Text('영상에서 지정한 시각으로 계산한 수치'),
+          if (result.metrics.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('확인된 시간 수치가 없습니다.')),
+          for (final metric in result.metrics) Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: GolfPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(metric.name, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 10),
+              Text('${metric.value.toStringAsFixed(metric.unit == 'ms' ? 0 : 2)} ${metric.unit}',
+                style: Theme.of(context).textTheme.headlineLarge),
+              const SizedBox(height: 10),
+              Text('${metric.status == MetricStatus.estimated ? '수동 추정' : metric.status.name} · ${metric.evidenceTimeMs.join(', ')} ms',
+                style: Theme.of(context).textTheme.bodySmall),
+            ])),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAlignment.start,
-          children: [
-            // Header Info Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.teal.shade800),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAlignment.start,
-                    children: [
-                      Text('${swing.club} Swing', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text('${LocalizationService.tr('select_orientation', lang)}: ${swing.view.name} | ${swing.handedness.name}'),
-                    ],
-                  ),
-                  Chip(
-                    label: Text('Schema ${result.schemaVersion}'),
-                    backgroundColor: Colors.teal.withOpacity(0.2),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // AI Korean/English Coaching Summary Box
-            Text(LocalizationService.tr('key_summary', lang), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.teal.shade900.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.teal),
-              ),
-              child: Text(
-                result.koreanSummary,
-                style: const TextStyle(fontSize: 15, height: 1.5),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Measured Key Metrics Table
-            Text(LocalizationService.tr('metrics_report', lang), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Card(
-              child: Column(
-                children: [
-                  ...result.metrics.map((metric) {
-                    return ListTile(
-                      title: Text(metric.name),
-                      subtitle: Text('Evidence ms: ${metric.evidenceTimeMs.join(', ')} ms'),
-                      trailing: Text(
-                        '${metric.value} ${metric.unit}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal),
-                      ),
-                    );
-                  }),
-                  if (shotData != null && shotData.calculatedSmashFactor != null)
-                    ListTile(
-                      title: Text(LocalizationService.tr('smash_factor', lang)),
-                      subtitle: const Text('Ball Speed ÷ Club Speed'),
-                      trailing: Text(
-                        '${shotData.calculatedSmashFactor}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Actionable Drill Recommendation Card
-            Text(LocalizationService.tr('recommended_drill', lang), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade900.withOpacity(0.25),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.fitness_center, color: Colors.amber),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          result.primaryDrillTitle,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    result.primaryDrillDescription,
-                    style: const TextStyle(fontSize: 14, height: 1.4),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 30),
-
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                onPressed: () {
-                  Navigator.popUntil(context, (route) => route.isFirst);
-                },
-                child: Text(LocalizationService.tr('back_to_home', lang), style: const TextStyle(color: Colors.white, fontSize: 16)),
-              ),
-            ),
+          const SizedBox(height: 16), const Text('사용자가 확인한 스크린장 샷 기록'),
+          if (shot == null || shot.ocrStatus != OcrStatus.userConfirmed)
+            const Padding(padding: EdgeInsets.all(16), child: Text('첨부한 샷 기록 없음'))
+          else ...[
+            _shot('볼스피드', shot.ballSpeedMs, 'm/s'),
+            _shot('클럽스피드', shot.clubSpeedMs, 'm/s'),
+            _shot('캐리', shot.carryDistanceMeters, 'm'),
+            _shot('총거리', shot.totalDistanceMeters, 'm'),
+            _shot('발사각', shot.launchAngleDeg, '°'),
+            _shot('백스핀', shot.backSpinRpm, 'rpm'),
+            _shot('사이드스핀', shot.sideSpinRpm, 'rpm'),
+            _shot('스매시 팩터 · 볼스피드/클럽스피드', shot.calculatedSmashFactor, ''),
           ],
-        ),
-      ),
+          const SizedBox(height: 16),
+          const Text('자세 각도와 자동 교정 분석은 아직 준비 중입니다. 측정하지 않은 항목을 정상으로 판정하지 않습니다.'),
+          OutlinedButton(onPressed: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PoseTrimmingScreen())), child: const Text('영상과 지정 시각 다시 확인')),
+          ElevatedButton(onPressed: () => Navigator.popUntil(context, (r) => r.isFirst), child: const Text('홈으로')),
+        ]),
     );
   }
+  Widget _shot(String label, double? value, String unit) => value == null
+    ? const SizedBox.shrink()
+    : ListTile(contentPadding: EdgeInsets.zero, title: Text(label), trailing: Text('${value.toStringAsFixed(2)} $unit'));
 }

@@ -31,10 +31,10 @@ class ShotMeasurementModel {
 
   /// Calculate Smash Factor: Ball Speed / Club Speed
   double? get calculatedSmashFactor {
-    if (ballSpeedMs != null && clubSpeedMs != null && clubSpeedMs! > 0) {
-      return double.parse((ballSpeedMs! / clubSpeedMs!).toStringAsFixed(2));
-    }
-    return smashFactor;
+    if (ocrStatus != OcrStatus.userConfirmed) return null;
+    final ball = ballSpeedMs, club = clubSpeedMs;
+    if (ball == null || club == null || !ball.isFinite || !club.isFinite || ball <= 0 || club <= 0) return null;
+    return double.parse((ball / club).toStringAsFixed(2));
   }
 
   // Unit conversion helpers
@@ -74,7 +74,7 @@ class ShotMeasurementModel {
       smashFactor: (map['smash_factor'] as num?)?.toDouble(),
       ocrStatus: map['ocr_status'] == 'userConfirmed'
           ? OcrStatus.userConfirmed
-          : OcrStatus.pending,
+          : map['ocr_status'] == 'rejected' ? OcrStatus.rejected : OcrStatus.pending,
     );
   }
 }

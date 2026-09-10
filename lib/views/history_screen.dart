@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/swing_provider.dart';
+import 'analysis_result_screen.dart';
 import '../services/localization_service.dart';
 
 class HistoryScreen extends StatelessWidget {
@@ -36,6 +37,10 @@ class HistoryScreen extends StatelessWidget {
                     ),
                     title: Text('${swing.club} Swing (${swing.view.name})'),
                     subtitle: Text(swing.createdAt.toString().split('.')[0]),
+                    onTap: () {
+                      provider.openHistory(swing);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisResultScreen()));
+                    },
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   ),
                 );

@@ -1,50 +1,114 @@
-# AI On-Device Golf Coach (AI 온디바이스 골프 코치)
+# 골프 코치 · 통합 소스 및 화면 디자인
 
-> **무료 골프 자세 분석 앱 기획서와 기술 아키텍처 (버전 0.2)** 기반 온디바이스 AI Flutter 앱
+이 ZIP은 보내주신 pubspec.zip을 바탕으로 수정한 lib 전체와 pubspec.yaml입니다.
+이전 v1/v2 패치 대신 이 통합본을 적용하세요. 기존 Android 프로젝트에 덮어쓰는 소스 묶음이며 APK나 독립 실행 가능한 전체 Flutter 프로젝트는 아닙니다.
 
----
+## 적용 순서
 
-## 🏗️ 프로젝트 아키텍처 및 핵심 모듈
+1. 기존 프로젝트를 백업합니다.
+2. 이 ZIP의 lib 폴더와 pubspec.yaml을 프로젝트의 같은 위치에 복사합니다.
+3. 테스트하려면 test 폴더도 복사합니다.
+4. 한글 OCR을 쓰려면 아래 Android 설정을 추가합니다.
+5. 프로젝트가 사용하는 Flutter로 다음 명령을 실행합니다.
 
-```
-lib/
-├── main.dart                  # 앱 진입점 (Dark Theme, Provider 설정)
-├── models/                    # 온디바이스 JSON Schema v0.1 기반 데이터 모델
-│   ├── swing_model.dart
-│   ├── shot_measurement_model.dart  # OCR 수치 & Smash Factor 계산
-│   ├── metric_model.dart            # 2D 각도/템포 지표
-│   └── analysis_result_model.dart   # 근거 기반 수치화 분석 결과
-├── services/                  # 온디바이스 알고리즘 & 샌드박싱 엔진
-│   ├── geometry_service.dart        # 2D 관절 각도 (acos(clamp)) & 어드레스 몸통 정규화
-│   ├── rule_engine.dart             # 수치 판정 규칙 엔진 (allowed_observations / drills)
-│   ├── ocr_service.dart             # ML Kit OCR 파싱 & 단위 변환
-│   ├── slm_template_service.dart    # 억제된 한국어 코칭 피드백 생성기 (환각 0건 지향)
-│   └── database_service.dart        # SQLite 데이터베이스 서비스
-├── providers/                 # 앱 상태 관리
-│   └── swing_provider.dart
-└── views/                     # 프리미엄 다크 모드 UI 화면
-    ├── home_screen.dart             # 메인 대시보드
-    ├── video_input_screen.dart      # 정면/후방, 왼손/오른손, 클럽 선택 & 영상 로딩
-    ├── ocr_input_screen.dart        # 스크린 결과 캡처 OCR 자동 파싱 & Smash Factor
-    ├── analysis_result_screen.dart   # 관찰 요약, 측정 수치 리포트 & 다음 연습 1가지
-    └── history_screen.dart          # 과거 분석 기록 비교
+```powershell
+flutter pub get
+flutter analyze
+flutter test
+flutter run
 ```
 
----
+FVM 프로젝트이면 각 명령을 `fvm flutter ...`로 실행하세요.
+이번 작업 환경에는 Flutter/Dart SDK와 Android 실행 환경이 없어 위 명령을 실행하지 못했습니다.
+전체 Dart 소스의 구문 파싱과 로컬 import 연결은 확인했지만, 이는 Flutter 타입 검사·빌드·실기기 시험을 대신하지 않습니다.
+기존 Flutter/Gradle 버전과 전체 의존성 해결 여부는 프로젝트에서 확인해야 합니다.
 
-## 🖥️ 윈도우(Windows) 로컬 PC에서 실행하는 방법
+## 화면 디자인
 
-1. **프로젝트 받아오기 (Git Pull)**:
-   ```bash
-   git pull origin main
-   ```
+- 차콜 배경 #101715, 카드 #1A2420, 민트 포인트 #B8F3D1.
+- 큰 제목, 넉넉한 여백, 둥근 입력창과 버튼.
+- 홈의 주 동작은 '새 스윙 기록' 한 가지.
+- 준비 → 영상 확인 → 샷 기록 → 결과, 네 단계 표시.
+- 결과는 수동 시간 추정값과 확인된 스크린장 수치를 구분.
+- 현재 새 화면은 한국어 중심입니다. 기존 영문 리소스는 남겼으나 전체 영문 화면을 완성한 것은 아닙니다.
 
-2. **패키지 설치**:
-   ```bash
-   flutter pub get
-   ```
+## 실제로 연결한 기능
 
-3. **안드로이드 에뮬레이터 또는 실기기 연결 후 실행**:
-   ```bash
-   flutter run
-   ```
+### 촬영과 영상
+- 기존의 실시간 ML Kit 카메라 관절 추적 코드를 포함했습니다.
+- 갤러리 취소/실패 때 가짜 샘플 경로를 넣던 동작을 제거했습니다.
+- 실제 영상 재생, 배속, 시간 이동, 구간 지정, 수동 이벤트 저장.
+- 실제 영상 길이 사용. FPS 미확인은 0이며 임의 60fps로 가정하지 않습니다.
+- 같은 영상 옆의 pose.json이 있을 때만 참고용 관절 표시.
+- 구간은 review.json에 기록하며 원본 동영상은 물리적으로 자르지 않습니다.
+
+### OCR과 샷 수치
+- 실제 캡처 이미지 선택 및 ML Kit OCR. 고정 샘플 문자열 제거.
+- 볼스피드/클럽스피드/캐리/총거리/발사각/백스핀/사이드스핀 입력.
+- 속도 mph·km/h를 m/s로, 거리 yd를 m로 변환.
+- OCR에 단위가 없거나 값이 모호하거나 같은 항목이 중복되면 자동 입력하지 않음.
+- 인식값은 후보입니다. 사용자가 사진과 대조하고 수정한 뒤 '확인 후 결과 보기'를 눌러야 사용.
+- 직접 입력 가능. '샷 기록 없이' 선택하면 이전에 첨부한 수치를 제거.
+- 같은 스윙 ID의 확인된 데이터만 Provider에 연결.
+- 확인된 양수·유한 속도 두 개가 있을 때만 스매시 팩터 계산.
+- 백스핀과 사이드스핀을 별도 처리하고 사이드스핀 부호 유지.
+
+### 결과와 기록
+- 어드레스→탑 시간, 탑→임팩트 추정 시간, 두 시간의 비율 표시.
+- 어드레스 대기 시간이 포함될 수 있으므로 정밀 백스윙 템포로 단정하지 않음.
+- 비율이나 샷 수치로 자세 문제/교정 동작을 자동 단정하지 않음.
+- 기록을 누르면 해당 스윙과 해당 샷/결과가 함께 열림.
+- 기록 목록은 현재 앱 실행 중 메모리에만 유지됩니다. 앱 재시작 후 복원은 아직 구현하지 않았습니다.
+- 영상 및 JSON은 현재 영상 저장 경로를 사용합니다. 앱 캐시 정리 시 사라질 수 있습니다.
+
+## Android 한글 OCR 설정
+
+이번 압축에는 android 폴더가 없어 기존 Gradle 파일을 직접 수정하지 않았습니다.
+영문·숫자 OCR은 기본 제공 언어를 사용합니다.
+한글을 인식하려면 `android/app/build.gradle`의 기존 dependencies 안에 다음을 추가하세요.
+
+```groovy
+dependencies {
+    implementation 'com.google.mlkit:text-recognition-korean:16.0.0-beta6'
+}
+```
+
+이 좌표는 사용 중인 google_mlkit_text_recognition 0.11.0의 공식 패키지 안내에 맞췄습니다.
+Kotlin DSL 파일이라면 같은 dependencies 안에 다음을 사용합니다.
+
+```kotlin
+implementation("com.google.mlkit:text-recognition-korean:16.0.0-beta6")
+```
+
+기존 minSdk 21 이상, 앞서 빌드가 요구한 compileSdk 34 이상 설정을 유지하세요. 더 높은 기존 값을 낮추지 마세요.
+카메라 권한은 기존 프로젝트 AndroidManifest.xml의 CAMERA 설정이 필요합니다.
+공식 패키지 설명: https://pub.dev/packages/google_mlkit_text_recognition/versions/0.11.0
+영상 재생 패키지: https://pub.dev/packages/video_player/versions/2.8.2
+
+## 아직 포함되지 않은 기능
+
+- 외부 동영상을 디코딩하여 새 관절 좌표를 추출하는 기능.
+- 영상 프레임 PTS와 정확히 동기화된 관절·임팩트 측정.
+- 전신 외곽선을 만드는 사람 분할.
+- 자동 어드레스/탑/임팩트/피니시 판정.
+- 실제 자세 각도 평가, 실제 SLM 모델 로딩·추론.
+- 앱 재시작 후 기록/영상의 영구 복원.
+
+SlmTemplateService는 기존 호출 호환성을 위해 이름만 유지한 결정적 문장 조합기입니다.
+실제 SLM이 동작하거나 자세가 정상이라고 오해할 문구를 제거했습니다.
+
+## 검증 및 실기기 확인
+
+구문 파서로 전체 Dart 파일의 문법 오류가 없음을 확인했습니다.
+테스트 소스를 포함했지만 Flutter가 없어 테스트 자체는 실행하지 못했습니다.
+- analysis_evidence_test.dart: 미확인 시각/잘못된 순서 거부, 수동 비율 계산, 근거 없는 교정 방지.
+- ocr_measurement_test.dart: 단위 변환, 중복 항목 거부, 한글 라벨, 확인 상태/0속도/NaN 검증.
+
+실기기에서 확인할 항목:
+1. 갤러리 취소 시 샘플 영상이 선택되지 않는지.
+2. 실제 촬영 및 파일 재생, 관절 표시가 몸에 맞는지.
+3. 수동 이벤트를 지정해야 다음 단계로 이동하는지.
+4. 실제 스크린장 캡처 OCR과 직접 입력, 빈 항목/부호/단위 확인.
+5. OCR 건너뛰기 때 이전 샷 수치가 사라지는지.
+6. 다른 두 스윙의 기록을 열 때 각각 맞는 샷과 결과를 보여주는지.
+7. 작은 화면과 글자 크기 확대한 상태에서 버튼과 입력창이 사용 가능한지.

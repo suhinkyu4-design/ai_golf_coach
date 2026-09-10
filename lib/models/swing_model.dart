@@ -52,7 +52,7 @@ class SwingModel {
       handedness: map['handedness'] == 'left' ? Handedness.left : Handedness.right,
       club: map['club'] ?? '7i',
       durationMs: map['duration_ms'] ?? 0,
-      fps: (map['fps'] as num?)?.toDouble() ?? 60.0,
+      fps: (map['fps'] as num?)?.toDouble() ?? 0.0,
       eventsMs: map['events_ms'] != null
           ? Map<String, int>.from(jsonDecode(map['events_ms']))
           : {},

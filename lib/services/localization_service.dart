@@ -7,12 +7,12 @@ class LocalizationService {
       'en': 'AI On-Device Golf Coach',
     },
     'banner_title': {
-      'ko': '무료 온디바이스 AI 분석',
-      'en': 'Free On-Device AI Analysis',
+      'ko': '영상과 샷 기록 확인',
+      'en': 'Video and shot review',
     },
     'banner_subtitle': {
-      'ko': '스마트폰 안에서 안전하고 빠른 자세 수치화 및 스크린 OCR 통합 피드백을 제공합니다.',
-      'en': 'Secure & fast pose metrics & screen OCR integrated coaching right inside your phone.',
+      'ko': '촬영한 영상과 직접 확인한 스크린장 수치를 함께 기록합니다.',
+      'en': 'Review video and confirmed shot values together.',
     },
     'start_new_swing': {
       'ko': '새 스윙 분석 시작',
@@ -27,8 +27,8 @@ class LocalizationService {
       'en': 'Import Face-on or Rear Swing Video',
     },
     'recent_history': {
-      'ko': '최근 분석 기록',
-      'en': 'Recent Swing History',
+      'ko': '이번 실행의 스윙 기록',
+      'en': 'Current Session History',
     },
     'view_all': {
       'ko': '전체보기',

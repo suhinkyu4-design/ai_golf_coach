@@ -36,7 +36,7 @@ class MetricModel {
       unit: map['unit'] ?? '',
       status: MetricStatus.values.firstWhere(
         (e) => e.name == map['status'],
-        orElse: () => MetricStatus.usable,
+        orElse: () => MetricStatus.unavailable,
       ),
       evidenceTimeMs: List<int>.from(map['evidence_t_ms'] ?? []),
     );
