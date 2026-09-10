@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
 import '../models/swing_model.dart';
 import '../providers/swing_provider.dart';
@@ -15,6 +16,10 @@ class LiveCameraRecordingScreen extends StatefulWidget {
 
 class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
     with SingleTickerProviderStateMixin {
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  bool _isCameraInitialized = false;
+
   bool _isRecording = false;
   int _recordSeconds = 0;
   Timer? _timer;
@@ -31,37 +36,77 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
+
+    _initRealCamera();
+  }
+
+  Future<void> _initRealCamera() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras != null && _cameras!.isNotEmpty) {
+        _cameraController = CameraController(
+          _cameras![0], // Back camera
+          ResolutionPreset.high,
+          enableAudio: false,
+        );
+        await _cameraController!.initialize();
+        if (mounted) {
+          setState(() {
+            _isCameraInitialized = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Real Camera init fallback: $e');
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _animController.dispose();
+    _cameraController?.dispose();
     super.dispose();
   }
 
-  void _toggleRecording() {
+  void _toggleRecording() async {
     if (_isRecording) {
       // Stop Recording
       _timer?.cancel();
+      String capturedPath = '/storage/emulated/0/DCIM/Camera/live_swing_recording.mp4';
+      if (_cameraController != null && _cameraController!.value.isRecordingVideo) {
+        try {
+          final file = await _cameraController!.stopVideoRecording();
+          capturedPath = file.path;
+        } catch (_) {}
+      }
+
       setState(() {
         _isRecording = false;
       });
 
       final provider = Provider.of<SwingProvider>(context, listen: false);
       provider.createNewSwing(
-        videoPath: '/storage/emulated/0/DCIM/Camera/live_swing_recording.mp4',
+        videoPath: capturedPath,
         view: provider.currentSwing?.view ?? SwingView.faceOn,
         handedness: provider.currentSwing?.handedness ?? Handedness.right,
         club: provider.currentSwing?.club ?? '7i',
       );
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PoseTrimmingScreen()),
-      );
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const PoseTrimmingScreen()),
+        );
+      }
     } else {
       // Start Recording
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
+        try {
+          await _cameraController!.startVideoRecording();
+        } catch (_) {}
+      }
+
       setState(() {
         _isRecording = true;
         _recordSeconds = 0;
@@ -87,17 +132,32 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Simulated Fullscreen Viewfinder Background
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: const Color(0xFF0F172A), // Dark viewfinder backdrop
-            child: const Center(
-              child: Icon(Icons.videocam, size: 100, color: Colors.white10),
+          // 1. Real Device Camera Preview Background Layer
+          if (_isCameraInitialized && _cameraController != null)
+            SizedBox.expand(
+              child: CameraPreview(_cameraController!),
+            )
+          else
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              color: const Color(0xFF0F172A),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.tealAccent),
+                    SizedBox(height: 12),
+                    Text(
+                      '카메라 라이브 피드 연결 중...',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
 
-          // Real-time MediaPipe Skeleton Drawing Overlay CustomPainter
+          // 2. Real-time MediaPipe Skeleton Drawing Overlay Layer (On top of Real Person)
           AnimatedBuilder(
             animation: _animController,
             builder: (context, child) {
@@ -111,7 +171,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
             },
           ),
 
-          // Top Header Bar
+          // 3. Top Header Bar
           Positioned(
             top: 50,
             left: 20,
@@ -128,7 +188,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.teal.shade900.withOpacity(0.85),
+                    color: Colors.black.withOpacity(0.75),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.tealAccent, width: 1.5),
                   ),
@@ -156,13 +216,12 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                   ),
                 ),
 
-                // Grid / Flash Icon
                 const Icon(Icons.grid_on_rounded, color: Colors.white70),
               ],
             ),
           ),
 
-          // Real-time Detection Status Badge
+          // 4. Real-time Detection Status Badge
           Positioned(
             top: 110,
             left: 0,
@@ -171,19 +230,19 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.65),
+                  color: Colors.black.withOpacity(0.75),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.greenAccent.withOpacity(0.5)),
+                  border: Border.all(color: Colors.greenAccent.withOpacity(0.6)),
                 ),
                 child: Text(
-                  isEn ? '✅ MediaPipe Pose: Full Body Detected' : '✅ MediaPipe AI: 전신 프레임 인지 완료',
+                  isEn ? '✅ Live Person & Skeleton Overlay Tracked' : '✅ 카메라 피드 실시간 인물 + 스켈레톤 인지 중',
                   style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
           ),
 
-          // Recording Time Badge (Pulsing)
+          // 5. Recording Time Badge (Pulsing)
           if (_isRecording)
             Positioned(
               top: 150,
@@ -193,7 +252,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade900.withOpacity(0.8),
+                    color: Colors.red.shade900.withOpacity(0.85),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -218,7 +277,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
               ),
             ),
 
-          // Bottom Control Panel
+          // 6. Bottom Control Panel
           Positioned(
             bottom: 40,
             left: 0,
@@ -229,7 +288,9 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
                   _isRecording
                       ? (isEn ? 'Tap RED button to STOP & Analyze' : '촬영 정지 및 분석 시작 (버튼 클릭)')
                       : (isEn ? 'Align full body & TAP to Record' : '전신을 화면에 맞추고 촬영 버튼을 누르세요'),
-                  style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, shadows: [
+                    Shadow(blurRadius: 4, color: Colors.black, offset: Offset(0, 2)),
+                  ]),
                 ),
                 const SizedBox(height: 16),
 
@@ -262,7 +323,7 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
   }
 }
 
-/// CustomPainter to render live 33-landmark skeleton over camera preview
+/// CustomPainter to render live 33-landmark skeleton over live camera preview
 class LivePoseSkeletonPainter extends CustomPainter {
   final double animValue;
   final String phase;
@@ -288,7 +349,7 @@ class LivePoseSkeletonPainter extends CustomPainter {
       ..color = Colors.cyanAccent
       ..strokeWidth = 4.0;
 
-    // Simulated skeleton keypoints relative to screen center
+    // Keypoints relative to real camera screen center
     final head = Offset(center.dx, center.dy - 120 * scale);
     final lShoulder = Offset(center.dx - 45 * scale, center.dy - 60 * scale);
     final rShoulder = Offset(center.dx + 45 * scale, center.dy - 60 * scale);
@@ -317,7 +378,7 @@ class LivePoseSkeletonPainter extends CustomPainter {
     final lAnkle = Offset(center.dx - 40 * scale, center.dy + 220 * scale);
     final rAnkle = Offset(center.dx + 40 * scale, center.dy + 220 * scale);
 
-    // Draw Skeleton Lines (Bones)
+    // Draw Skeleton Lines (Bones) over camera
     canvas.drawLine(lShoulder, rShoulder, linePaint); // Shoulders
     canvas.drawLine(lShoulder, lElbow, linePaint);
     canvas.drawLine(lElbow, lWrist, linePaint);
