@@ -32,7 +32,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Skeleton Overlay Video Preview Placeholder
             Container(
@@ -70,7 +70,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black70,
+                        color: Colors.black.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -96,7 +96,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
               max: 3000,
               divisions: 60,
               activeColor: Colors.teal,
-              labels: RangeSliderLabels(
+              labels: RangeLabels(
                 '${(_trimRange.start / 1000).toStringAsFixed(1)}s',
                 '${(_trimRange.end / 1000).toStringAsFixed(1)}s',
               ),
