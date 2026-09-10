@@ -5,6 +5,7 @@ import '../models/swing_model.dart';
 import '../providers/swing_provider.dart';
 import '../services/localization_service.dart';
 import 'pose_trimming_screen.dart';
+import 'live_camera_recording_screen.dart';
 
 class VideoInputScreen extends StatefulWidget {
   const VideoInputScreen({super.key});
@@ -44,35 +45,19 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
     );
   }
 
-  Future<void> _pickVideoFromCamera() async {
-    try {
-      final XFile? video = await _picker.pickVideo(
-        source: ImageSource.camera,
-        maxDuration: const Duration(seconds: 30),
-      );
-      if (video != null) {
-        setState(() {
-          _videoPath = video.path;
-        });
-        if (mounted) {
-          final lang = Provider.of<SwingProvider>(context, listen: false).appLanguage;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                lang == AppLanguage.korean
-                    ? '📹 촬영 완료! 스윙 비디오가 선택되었습니다.'
-                    : '📹 Video Captured Successfully!',
-              ),
-              backgroundColor: Colors.teal,
-            ),
-          );
-        }
-      } else {
-        _selectDemoVideo(fromCameraAttempt: true);
-      }
-    } catch (e) {
-      _selectDemoVideo(fromCameraAttempt: true);
-    }
+  void _openLiveCameraWithSkeleton() {
+    final provider = Provider.of<SwingProvider>(context, listen: false);
+    provider.createNewSwing(
+      videoPath: _videoPath ?? '',
+      view: _selectedView,
+      handedness: _selectedHandedness,
+      club: _selectedClub,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LiveCameraRecordingScreen()),
+    );
   }
 
   Future<void> _pickVideoFromGallery() async {
@@ -181,7 +166,7 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
                         ? (lang == AppLanguage.korean
                             ? '✅ 선택된 비디오: ${_videoPath!.split('/').last}'
                             : '✅ Selected: ${_videoPath!.split('/').last}')
-                        : (lang == AppLanguage.korean ? '스윙 비디오 선택 또는 촬영' : 'Select or Record Swing Video'),
+                        : (lang == AppLanguage.korean ? '스윙 비디오 선택 또는 라이브 촬영' : 'Select or Live Record Swing Video'),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -192,7 +177,7 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      // Real Camera Shoot Button
+                      // Real Live Camera Shoot with Skeleton Button
                       Expanded(
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
@@ -201,11 +186,11 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 11),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                          onPressed: _pickVideoFromCamera,
+                          onPressed: _openLiveCameraWithSkeleton,
                           icon: const Icon(Icons.videocam_rounded, color: Colors.white, size: 18),
                           label: Text(
-                            lang == AppLanguage.korean ? '카메라 촬영' : 'Camera Shoot',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            lang == AppLanguage.korean ? '라이브 촬영 & 스켈레톤' : 'Live Camera & Pose',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
                           ),
                         ),
                       ),
@@ -223,7 +208,7 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
                           icon: const Icon(Icons.video_library_rounded, color: Colors.white, size: 18),
                           label: Text(
                             lang == AppLanguage.korean ? '갤러리 선택' : 'Pick Gallery',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
                           ),
                         ),
                       ),
