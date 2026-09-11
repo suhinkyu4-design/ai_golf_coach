@@ -114,50 +114,63 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
   void _autoDetectEvents() {
     if (_events.isNotEmpty && _events.length == _labels.length) return;
 
+    final startMs = _range.start.round().clamp(0, _duration);
+    final endMs = _range.end.round().clamp(startMs + 100, _duration);
+
     if (_samples.isNotEmpty) {
       try {
         int topIndex = 0;
         double minWristY = double.infinity;
 
+        // 1. 백스윙 탑 탐지 (손목 Y 위치가 가장 높은 프레임)
         for (int i = 0; i < _samples.length; i++) {
           final landmarks = _samples[i]['landmarks'] as List?;
           if (landmarks == null) continue;
+          double sumY = 0;
+          int count = 0;
           for (final item in landmarks) {
             if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
               final y = (item['y'] as num).toDouble();
-              if (y < minWristY) {
-                minWristY = y;
-                topIndex = i;
-              }
+              sumY += y;
+              count++;
+            }
+          }
+          if (count > 0) {
+            final avgY = sumY / count;
+            if (avgY < minWristY) {
+              minWristY = avgY;
+              topIndex = i;
             }
           }
         }
 
-        final topMs = _samples[topIndex]['t_ms'] as int;
-        final startMs = (_samples.first['t_ms'] as int).clamp(0, _duration);
-        final endMs = (_samples.last['t_ms'] as int).clamp(0, _duration);
+        // 포즈 샘플 타임스탬프에서 _offset을 반영하여 비디오 타임스탬프(video PTS)로 전환
+        final topSampleMs = _samples[topIndex]['t_ms'] as int;
+        final topMs = (topSampleMs - _offset).clamp(startMs, endMs);
 
-        final addressMs = (startMs + (topMs - startMs) * 0.35).round();
-        final impactMs = (topMs + (endMs - topMs) * 0.25).round();
-        final finishMs = (topMs + (endMs - topMs) * 0.70).round();
+        // 2. 어드레스: 탑 이전 약 35% 지점
+        final addressMs = (startMs + (topMs - startMs) * 0.35).round().clamp(startMs, topMs - 100);
 
-        _events['address'] = addressMs.clamp(0, _duration);
-        _events['top'] = topMs.clamp(0, _duration);
-        _events['impact'] = impactMs.clamp(0, _duration);
-        _events['finish'] = finishMs.clamp(0, _duration);
+        // 3. 임팩트: 탑 이후 약 25% 지점
+        final impactMs = (topMs + (endMs - topMs) * 0.25).round().clamp(topMs + 50, endMs - 100);
+
+        // 4. 피니시: 임팩트 이후 약 65% 지점
+        final finishMs = (impactMs + (endMs - impactMs) * 0.65).round().clamp(impactMs + 50, endMs);
+
+        _events['address'] = addressMs;
+        _events['top'] = topMs;
+        _events['impact'] = impactMs;
+        _events['finish'] = finishMs;
         return;
       } catch (_) {}
     }
 
     // 관절 데이터가 없을 때 영상 시간 비율 기반 자동 추정
-    final start = _range.start.round();
-    final end = _range.end.round();
-    final span = end - start;
-
-    _events['address'] = (start + span * 0.15).round();
-    _events['top'] = (start + span * 0.50).round();
-    _events['impact'] = (start + span * 0.65).round();
-    _events['finish'] = (start + span * 0.85).round();
+    final span = endMs - startMs;
+    _events['address'] = (startMs + span * 0.15).round();
+    _events['top'] = (startMs + span * 0.45).round();
+    _events['impact'] = (startMs + span * 0.65).round();
+    _events['finish'] = (startMs + span * 0.85).round();
   }
 
   void _tick() {
@@ -179,6 +192,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     try {
       await _player!.pause();
       await _player!.seekTo(Duration(milliseconds: ms.clamp(0, _duration).toInt()));
+      if (mounted) setState(() {});
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('시간 이동 실패: $e')));
     } finally {
@@ -210,8 +224,8 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         ((_samples[index]['t_ms'] as int) - target).abs()) index--;
     final s = _samples[index];
     final ratio = (s['width'] as num) / (s['height'] as num);
-    if (((s['t_ms'] as int) - target).abs() > 150 || s['detected'] != true ||
-        (ratio / _player!.value.aspectRatio - 1).abs() > .05) return null;
+    if (((s['t_ms'] as int) - target).abs() > 500 || s['detected'] != true ||
+        (ratio / _player!.value.aspectRatio - 1).abs() > .10) return null;
     return s;
   }
 
@@ -266,12 +280,21 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         if (_samples.isNotEmpty) ...[
           SwitchListTile(contentPadding: EdgeInsets.zero,
             title: const Text('참고용 관절 표시'),
-            subtitle: const Text('정밀 프레임 동기화 아님 · 검출 누락/화면 비율 불일치 시 숨김'),
+            subtitle: const Text('동영상 및 포즈 시간 보정 가능'),
             value: _overlay, onChanged: (v) => setState(() => _overlay = v)),
           if (_overlay) ...[
             Text('관절 기록 시간 보정: $_offset ms'),
-            Slider(value: _offset.toDouble(), min: -1000, max: 1000, divisions: 200,
-              onChanged: (v) => setState(() => _offset = v.round())),
+            Slider(
+              value: _offset.toDouble().clamp(-5000, 5000),
+              min: -5000,
+              max: 5000,
+              divisions: 500,
+              onChanged: (v) => setState(() {
+                _offset = v.round();
+                _events.clear();
+                _autoDetectEvents();
+              }),
+            ),
           ],
         ],
         Text('${_time(p.value.position.inMilliseconds)} / ${_time(_duration)}'),
@@ -295,7 +318,14 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         const Text('1. 분석 구간 선택 (원본 영상은 자르지 않습니다)'),
         RangeSlider(values: _range, max: _duration.toDouble(),
           labels: RangeLabels(_time(_range.start), _time(_range.end)),
-          onChanged: _saving ? null : (v) { p.pause(); setState(() => _range = RangeValues(v.start.roundToDouble(), v.end.roundToDouble())); }),
+          onChanged: _saving ? null : (v) {
+            p.pause();
+            setState(() {
+              _range = RangeValues(v.start.roundToDouble(), v.end.roundToDouble());
+              _events.clear();
+              _autoDetectEvents();
+            });
+          }),
         Text('${_time(_range.start)} ~ ${_time(_range.end)}'),
         const SizedBox(height: 16),
         Container(
