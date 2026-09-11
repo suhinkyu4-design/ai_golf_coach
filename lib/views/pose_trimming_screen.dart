@@ -5,6 +5,7 @@ import '../widgets/golf_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import '../providers/swing_provider.dart';
+import '../theme/app_theme.dart';
 import 'ocr_input_screen.dart';
 
 class PoseTrimmingScreen extends StatefulWidget {
@@ -51,6 +52,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
       _range = RangeValues(0, _duration.toDouble());
       await _loadPose();
       await _loadReview();
+      _autoDetectEvents();
       if (!mounted) return;
       player.addListener(_tick);
       setState(() {});
@@ -107,6 +109,55 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     } catch (_) {
       // An invalid or legacy review must never become measured event data.
     }
+  }
+
+  void _autoDetectEvents() {
+    if (_events.isNotEmpty && _events.length == _labels.length) return;
+
+    if (_samples.isNotEmpty) {
+      try {
+        int topIndex = 0;
+        double minWristY = double.infinity;
+
+        for (int i = 0; i < _samples.length; i++) {
+          final landmarks = _samples[i]['landmarks'] as List?;
+          if (landmarks == null) continue;
+          for (final item in landmarks) {
+            if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
+              final y = (item['y'] as num).toDouble();
+              if (y < minWristY) {
+                minWristY = y;
+                topIndex = i;
+              }
+            }
+          }
+        }
+
+        final topMs = _samples[topIndex]['t_ms'] as int;
+        final startMs = (_samples.first['t_ms'] as int).clamp(0, _duration);
+        final endMs = (_samples.last['t_ms'] as int).clamp(0, _duration);
+
+        final addressMs = (startMs + (topMs - startMs) * 0.35).round();
+        final impactMs = (topMs + (endMs - topMs) * 0.25).round();
+        final finishMs = (topMs + (endMs - topMs) * 0.70).round();
+
+        _events['address'] = addressMs.clamp(0, _duration);
+        _events['top'] = topMs.clamp(0, _duration);
+        _events['impact'] = impactMs.clamp(0, _duration);
+        _events['finish'] = finishMs.clamp(0, _duration);
+        return;
+      } catch (_) {}
+    }
+
+    // 관절 데이터가 없을 때 영상 시간 비율 기반 자동 추정
+    final start = _range.start.round();
+    final end = _range.end.round();
+    final span = end - start;
+
+    _events['address'] = (start + span * 0.15).round();
+    _events['top'] = (start + span * 0.50).round();
+    _events['impact'] = (start + span * 0.65).round();
+    _events['finish'] = (start + span * 0.85).round();
   }
 
   void _tick() {
@@ -247,17 +298,53 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
           onChanged: _saving ? null : (v) { p.pause(); setState(() => _range = RangeValues(v.start.roundToDouble(), v.end.roundToDouble())); }),
         Text('${_time(_range.start)} ~ ${_time(_range.end)}'),
         const SizedBox(height: 16),
-        const Text('2. 영상을 멈추고 각 구간을 직접 지정하세요'),
-        const Text('시간 이동은 정확한 한 프레임 이동이 아닙니다. 임팩트는 육안 추정입니다.'),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.mint.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.mint.withOpacity(0.3)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: AppTheme.mint, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '⚡ 스윙 4단계 구간이 자동으로 추출되었습니다.\n항목을 누르면 해당 프레임으로 이동하며, 필요시 미세 보정하세요.',
+                  style: TextStyle(fontSize: 12, height: 1.4, color: AppTheme.mint),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         for (final entry in _labels.entries)
-          Card(child: ListTile(
-            title: Text(entry.value),
-            subtitle: Text(_events[entry.key] == null ? '미지정' : _time(_events[entry.key]!)),
-            onTap: _events[entry.key] == null ? null : () => _seek(_events[entry.key]!),
-            trailing: TextButton(onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
-              setState(() => _events[entry.key] = p.value.position.inMilliseconds.clamp(0, _duration).toInt());
-            }, child: const Text('현재 위치 지정')),
-          )),
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              title: Text(entry.value, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(_events[entry.key] == null ? '미지정' : '후보 시각: ${_time(_events[entry.key]!)}'),
+              onTap: _events[entry.key] == null ? null : () => _seek(_events[entry.key]!),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_events[entry.key] != null)
+                    IconButton(
+                      icon: const Icon(Icons.play_circle_outline, color: AppTheme.mint),
+                      tooltip: '해당 시각으로 이동',
+                      onPressed: () => _seek(_events[entry.key]!),
+                    ),
+                  TextButton(
+                    onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
+                      setState(() => _events[entry.key] = p.value.position.inMilliseconds.clamp(0, _duration).toInt());
+                    },
+                    child: const Text('현재 위치로 재지정'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (!_valid) const Text('선택 구간 안에서 어드레스 < 탑 < 임팩트 < 피니시 순으로 지정하세요.'),
         const SizedBox(height: 12),
         ElevatedButton(onPressed: _valid && !_saving && !_seeking ? _save : null,

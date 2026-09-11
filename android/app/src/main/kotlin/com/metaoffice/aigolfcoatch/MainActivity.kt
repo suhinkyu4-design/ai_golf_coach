@@ -1,4 +1,4 @@
-package com.example.ai_golf_coach
+package com.metaoffice.aigolfcoatch
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -43,6 +43,17 @@ class AppTheme {
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: mint)),
       ),
+      chipTheme: ChipThemeData(
+        backgroundColor: surface,
+        selectedColor: mint,
+        disabledColor: surface,
+        labelStyle: const TextStyle(color: Color(0xFFF2F5F1), fontWeight: FontWeight.w600),
+        secondaryLabelStyle: const TextStyle(color: Color(0xFF12291D), fontWeight: FontWeight.bold),
+        checkmarkColor: const Color(0xFF12291D),
+        side: const BorderSide(color: Color(0xFF40534A)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
       dividerTheme: const DividerThemeData(color: Color(0xFF2D3B33), space: 24),
     );
   }
