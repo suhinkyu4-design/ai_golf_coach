@@ -149,21 +149,50 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     }
   }
 
+  void _setEvent(String key, int ms) {
+    setState(() {
+      final target = ms.clamp(0, _duration);
+      _events[key] = target;
+
+      final startMs = _range.start.round();
+      final endMs = _range.end.round();
+
+      // 백스윙 탑(top) 지정 시 어드레스, 임팩트, 피니시 자동 상대 배치
+      if (key == 'top') {
+        final topMs = target;
+        if (_events['address'] == null || _events['address']! >= topMs) {
+          _events['address'] = (startMs + (topMs - startMs) * 0.40).round().clamp(startMs, topMs - 50);
+        }
+        if (_events['impact'] == null || _events['impact']! <= topMs) {
+          _events['impact'] = (topMs + (endMs - topMs) * 0.30).round().clamp(topMs + 50, endMs - 50);
+        }
+        if (_events['finish'] == null || _events['finish']! <= _events['impact']!) {
+          _events['finish'] = (_events['impact']! + (endMs - _events['impact']!) * 0.65).round().clamp(_events['impact']! + 50, endMs);
+        }
+      }
+    });
+  }
+
   void _autoDetectEvents() {
     if (_events.isNotEmpty && _events.length == _labels.length) return;
 
     final startMs = _range.start.round().clamp(0, _duration);
     final endMs = _range.end.round().clamp(startMs + 100, _duration);
 
-    if (_samples.isNotEmpty) {
+    // 실제 유효 관절 레코드(landmarks)가 감지된 샘플 검색
+    final validSamples = _samples.where((s) {
+      final t = s['t_ms'] as int;
+      final landmarks = s['landmarks'] as List?;
+      return t >= startMs && t <= endMs && landmarks != null && landmarks.isNotEmpty;
+    }).toList();
+
+    if (validSamples.length >= 5) {
       try {
         int topIndex = 0;
         double minWristY = double.infinity;
 
-        // 1. 백스윙 탑 탐지 (손목 Y 위치가 가장 높은 프레임)
-        for (int i = 0; i < _samples.length; i++) {
-          final landmarks = _samples[i]['landmarks'] as List?;
-          if (landmarks == null) continue;
+        for (int i = 0; i < validSamples.length; i++) {
+          final landmarks = validSamples[i]['landmarks'] as List;
           double sumY = 0;
           int count = 0;
           for (final item in landmarks) {
@@ -182,17 +211,11 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
           }
         }
 
-        // 포즈 샘플 타임스탬프에서 _offset을 반영하여 비디오 타임스탬프(video PTS)로 전환
-        final topSampleMs = _samples[topIndex]['t_ms'] as int;
+        final topSampleMs = validSamples[topIndex]['t_ms'] as int;
         final topMs = (topSampleMs - _offset).clamp(startMs, endMs);
 
-        // 2. 어드레스: 탑 이전 약 35% 지점
         final addressMs = (startMs + (topMs - startMs) * 0.35).round().clamp(startMs, topMs - 100);
-
-        // 3. 임팩트: 탑 이후 약 25% 지점
         final impactMs = (topMs + (endMs - topMs) * 0.25).round().clamp(topMs + 50, endMs - 100);
-
-        // 4. 피니시: 임팩트 이후 약 65% 지점
         final finishMs = (impactMs + (endMs - impactMs) * 0.65).round().clamp(impactMs + 50, endMs);
 
         _events['address'] = addressMs;
@@ -203,11 +226,12 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
       } catch (_) {}
     }
 
-    // 관절 데이터가 없을 때 영상 시간 비율 기반 자동 추정
+    // 관절 좌표 레코드가 없는 갤러리 영상:
+    // 스윙 동선 비율(어드레스 10%, 탑 40%, 임팩트 60%, 피니시 85%)로 지능적 연산
     final span = endMs - startMs;
-    _events['address'] = (startMs + span * 0.15).round();
-    _events['top'] = (startMs + span * 0.45).round();
-    _events['impact'] = (startMs + span * 0.65).round();
+    _events['address'] = (startMs + span * 0.10).round();
+    _events['top'] = (startMs + span * 0.40).round();
+    _events['impact'] = (startMs + span * 0.60).round();
     _events['finish'] = (startMs + span * 0.85).round();
   }
 
@@ -408,7 +432,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
                     ),
                   TextButton(
                     onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
-                      setState(() => _events[entry.key] = p.value.position.inMilliseconds.clamp(0, _duration).toInt());
+                      _setEvent(entry.key, p.value.position.inMilliseconds);
                     },
                     child: const Text('현재 위치로 재지정'),
                   ),
