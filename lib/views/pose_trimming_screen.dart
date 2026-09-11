@@ -277,25 +277,28 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
           ])),
         ))),
         Text(_poseStatus),
-        if (_samples.isNotEmpty) ...[
-          SwitchListTile(contentPadding: EdgeInsets.zero,
-            title: const Text('참고용 관절 표시'),
-            subtitle: const Text('동영상 및 포즈 시간 보정 가능'),
-            value: _overlay, onChanged: (v) => setState(() => _overlay = v)),
-          if (_overlay) ...[
-            Text('관절 기록 시간 보정: $_offset ms'),
-            Slider(
-              value: _offset.toDouble().clamp(-5000, 5000),
-              min: -5000,
-              max: 5000,
-              divisions: 500,
-              onChanged: (v) => setState(() {
-                _offset = v.round();
-                _events.clear();
-                _autoDetectEvents();
-              }),
+        if (_samples.isEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withOpacity(0.4)),
             ),
-          ],
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange, size: 22),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '💡 관절 좌표 기록이 없는 영상입니다.\n아래 [1. 분석 구간 선택] 슬라이더로 스윙 동작(시작~끝)을 조절하면, 4개 후보 시각이 스윙에 맞게 정밀 자동 배치됩니다.',
+                    style: TextStyle(fontSize: 12, height: 1.4, color: Colors.orangeAccent),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
         ],
         Text('${_time(p.value.position.inMilliseconds)} / ${_time(_duration)}'),
         Slider(value: p.value.position.inMilliseconds.clamp(0, _duration).toDouble(),
