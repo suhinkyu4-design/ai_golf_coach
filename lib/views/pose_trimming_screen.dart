@@ -200,6 +200,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
 
     final startMs = _range.start.round().clamp(0, _duration);
     final endMs = _range.end.round().clamp(startMs + 100, _duration);
+    final span = endMs - startMs;
 
     // 실제 유효 관절 레코드(landmarks)가 감지된 샘플 검색
     final validSamples = _samples.where((s) {
@@ -210,47 +211,94 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
 
     if (validSamples.length >= 5) {
       try {
-        int topIndex = 0;
-        double minWristY = double.infinity;
+        // 1. 어드레스 탐지: 스윙 전반부(10%~45% 구간) 중 손목 Y가 가장 낮고 안정된 준비 자세
+        int addressIndex = 0;
+        double maxAddressWristY = -double.infinity;
+        int maxIndexForSearch = (validSamples.length * 0.45).round().clamp(1, validSamples.length - 1);
 
-        for (int i = 0; i < validSamples.length; i++) {
+        for (int i = 0; i < maxIndexForSearch; i++) {
           final landmarks = validSamples[i]['landmarks'] as List;
-          double sumY = 0;
-          int count = 0;
+          double sumY = 0; int count = 0;
           for (final item in landmarks) {
             if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
-              final y = (item['y'] as num).toDouble();
-              sumY += y;
+              sumY += (item['y'] as num).toDouble();
               count++;
             }
           }
           if (count > 0) {
             final avgY = sumY / count;
-            if (avgY < minWristY) {
-              minWristY = avgY;
+            if (avgY > maxAddressWristY) {
+              maxAddressWristY = avgY;
+              addressIndex = i;
+            }
+          }
+        }
+
+        // 2. 백스윙 탑 탐지: 어드레스 이후 ~ 스윙 80% 구간 사이 손목 Y 위치가 가장 높은(최소 Y) 지점
+        int topIndex = addressIndex;
+        double minTopWristY = double.infinity;
+        int topSearchEndIndex = (validSamples.length * 0.80).round().clamp(addressIndex + 1, validSamples.length);
+
+        for (int i = addressIndex; i < topSearchEndIndex; i++) {
+          final landmarks = validSamples[i]['landmarks'] as List;
+          double sumY = 0; int count = 0;
+          for (final item in landmarks) {
+            if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
+              sumY += (item['y'] as num).toDouble();
+              count++;
+            }
+          }
+          if (count > 0) {
+            final avgY = sumY / count;
+            if (avgY < minTopWristY) {
+              minTopWristY = avgY;
               topIndex = i;
             }
           }
         }
 
-        final topSampleMs = validSamples[topIndex]['t_ms'] as int;
-        final topMs = (topSampleMs - _offset).clamp(startMs, endMs);
+        // 3. 임팩트 탐지: 백스윙 탑 이후 손목 Y가 다시 어드레스 높이로 하강하는 지점
+        int impactIndex = topIndex;
+        double maxImpactWristY = -double.infinity;
+        for (int i = topIndex; i < validSamples.length; i++) {
+          final landmarks = validSamples[i]['landmarks'] as List;
+          double sumY = 0; int count = 0;
+          for (final item in landmarks) {
+            if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
+              sumY += (item['y'] as num).toDouble();
+              count++;
+            }
+          }
+          if (count > 0) {
+            final avgY = sumY / count;
+            if (avgY > maxImpactWristY) {
+              maxImpactWristY = avgY;
+              impactIndex = i;
+            }
+          }
+        }
 
-        final addressMs = (startMs + (topMs - startMs) * 0.35).round().clamp(startMs, topMs - 100);
-        final impactMs = (topMs + (endMs - topMs) * 0.25).round().clamp(topMs + 50, endMs - 100);
-        final finishMs = (impactMs + (endMs - impactMs) * 0.65).round().clamp(impactMs + 50, endMs);
+        // 4. 피니시 탐지: 임팩트 이후 후반부
+        int finishIndex = (impactIndex + (validSamples.length - 1 - impactIndex) * 0.65).round().clamp(impactIndex, validSamples.length - 1);
 
-        _events['address'] = addressMs;
-        _events['top'] = topMs;
-        _events['impact'] = impactMs;
-        _events['finish'] = finishMs;
-        return;
+        final addressMs = (validSamples[addressIndex]['t_ms'] as int) - _offset;
+        final topMs = (validSamples[topIndex]['t_ms'] as int) - _offset;
+        final impactMs = (validSamples[impactIndex]['t_ms'] as int) - _offset;
+        final finishMs = (validSamples[finishIndex]['t_ms'] as int) - _offset;
+
+        // 순서 검증 (Address < Top < Impact < Finish)
+        if (addressMs < topMs && topMs < impactMs && impactMs <= finishMs) {
+          _events['address'] = addressMs.clamp(startMs, endMs);
+          _events['top'] = topMs.clamp(startMs, endMs);
+          _events['impact'] = impactMs.clamp(startMs, endMs);
+          _events['finish'] = finishMs.clamp(startMs, endMs);
+          return;
+        }
       } catch (_) {}
     }
 
-    // 관절 좌표 레코드가 없는 갤러리 영상:
+    // 관절 데이터가 없는 갤러리 영상:
     // 스윙 동선 비율(어드레스 10%, 탑 40%, 임팩트 60%, 피니시 85%)로 지능적 연산
-    final span = endMs - startMs;
     _events['address'] = (startMs + span * 0.10).round();
     _events['top'] = (startMs + span * 0.40).round();
     _events['impact'] = (startMs + span * 0.60).round();
