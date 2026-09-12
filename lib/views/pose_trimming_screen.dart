@@ -511,8 +511,9 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         Text('${_time(p.value.position.inMilliseconds)} / ${_time(_duration)}'),
         Slider(value: p.value.position.inMilliseconds.clamp(0, _duration).toDouble(),
           max: _duration.toDouble(), onChanged: _seeking || _saving ? null : (v) => _seek(v.round())),
-        Wrap(alignment: WrapAlignment.center, spacing: 8, children: [
-          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds - 50), child: const Text('−0.05초')),
+        Wrap(alignment: WrapAlignment.center, spacing: 4, children: [
+          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds - 33), child: const Text('−1프레임')),
+          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds - 100), child: const Text('−0.1초')),
           IconButton(icon: Icon(p.value.isPlaying ? Icons.pause : Icons.play_arrow),
             onPressed: _seeking || _saving ? null : () async {
               if (p.value.isPlaying) { await p.pause(); return; }
@@ -521,11 +522,87 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
               }
               if (mounted) await p.play();
             }),
-          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds + 50), child: const Text('+0.05초')),
+          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds + 100), child: const Text('+0.1초')),
+          TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds + 33), child: const Text('+1프레임')),
           DropdownButton<double>(value: p.value.playbackSpeed,
             items: [0.25, 0.5, 1.0].map((s) => DropdownMenuItem(value: s, child: Text('${s}x'))).toList(),
             onChanged: (s) { if (s != null) p.setPlaybackSpeed(s); }),
         ]),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF40534A)),
+          ),
+          child: Column(
+            children: [
+              const Text('⚡ 현재 영상 위치로 스윙 구간 원터치 지정',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.mint)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                alignment: WrapAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E3D35),
+                      foregroundColor: AppTheme.mint,
+                      minimumSize: const Size(100, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    ),
+                    onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
+                      _setEvent('address', p.value.position.inMilliseconds);
+                    },
+                    icon: const Icon(Icons.sports_golf, size: 15),
+                    label: const Text('어드레스', style: TextStyle(fontSize: 12)),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E3D35),
+                      foregroundColor: AppTheme.mint,
+                      minimumSize: const Size(100, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    ),
+                    onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
+                      _setEvent('top', p.value.position.inMilliseconds);
+                    },
+                    icon: const Icon(Icons.vertical_align_top, size: 15),
+                    label: const Text('백스윙 탑', style: TextStyle(fontSize: 12)),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E3D35),
+                      foregroundColor: AppTheme.mint,
+                      minimumSize: const Size(100, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    ),
+                    onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
+                      _setEvent('impact', p.value.position.inMilliseconds);
+                    },
+                    icon: const Icon(Icons.flash_on, size: 15),
+                    label: const Text('임팩트', style: TextStyle(fontSize: 12)),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E3D35),
+                      foregroundColor: AppTheme.mint,
+                      minimumSize: const Size(100, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    ),
+                    onPressed: p.value.isPlaying || _seeking || _saving ? null : () {
+                      _setEvent('finish', p.value.position.inMilliseconds);
+                    },
+                    icon: const Icon(Icons.flag, size: 15),
+                    label: const Text('피니시', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
         const Text('1. 분석 구간 선택 (원본 영상은 자르지 않습니다)'),
         RangeSlider(values: _range, max: _duration.toDouble(),
           labels: RangeLabels(_time(_range.start), _time(_range.end)),
