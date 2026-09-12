@@ -20,7 +20,7 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
   bool _busy = false;
   String? _image, _error;
   String _raw = '';
-  TextRecognitionScript _script = TextRecognitionScript.latin;
+  TextRecognitionScript _script = TextRecognitionScript.korean;
   static const _labels = ['볼스피드 (m/s)', '클럽스피드 (m/s)', '캐리 (m)',
     '총거리 (m)', '발사각 (°)', '백스핀 (rpm)', '사이드스핀 (rpm)'];
 
