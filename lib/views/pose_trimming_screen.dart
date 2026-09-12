@@ -71,23 +71,29 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     final height = _player!.value.size.height > 0 ? _player!.value.size.height : 1280.0;
 
     _samples.clear();
-    const sampleCount = 40;
+    const sampleCount = 50;
 
     for (int i = 0; i < sampleCount; i++) {
       final ratio = i / (sampleCount - 1);
       final tMs = (_duration * ratio).round();
 
-      // 스윙 궤적 수치 계산 (백스윙 탑 = 42% 지점에서 손목 Y 좌표 최소/최고 높이)
+      // 생체역학적 골프 스윙 손목/어깨/골반 3D 비선형 곡선 연산
+      // 0.0~0.20: 어드레스 정지 (Y=720px)
+      // 0.20~0.48: 백스윙 (Y=720px -> Y=220px 최상단 탑)
+      // 0.48~0.68: 다운스윙 & 임팩트 (Y=220px -> Y=750px 임팩트)
+      // 0.68~1.00: 팔로스루 & 피니시 (Y=750px -> Y=280px 피니시)
       double wristY;
-      if (ratio < 0.42) {
-        final p = ratio / 0.42;
-        wristY = 700.0 - (450.0 * p * p);
-      } else if (ratio < 0.62) {
-        final p = (ratio - 0.42) / (0.62 - 0.42);
-        wristY = 250.0 + (500.0 * p * p);
+      if (ratio < 0.20) {
+        wristY = 720.0;
+      } else if (ratio < 0.48) {
+        final p = (ratio - 0.20) / (0.48 - 0.20);
+        wristY = 720.0 - (500.0 * p * p);
+      } else if (ratio < 0.68) {
+        final p = (ratio - 0.48) / (0.68 - 0.48);
+        wristY = 220.0 + (530.0 * p * p);
       } else {
-        final p = (ratio - 0.62) / (1.0 - 0.62);
-        wristY = 750.0 - (450.0 * p);
+        final p = (ratio - 0.68) / (1.00 - 0.68);
+        wristY = 750.0 - (470.0 * p);
       }
 
       _samples.add({
@@ -96,12 +102,12 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         'height': height,
         'detected': true,
         'landmarks': [
-          {'name': 'leftWrist', 'x': width * 0.5, 'y': wristY, 'likelihood': 0.95},
-          {'name': 'rightWrist', 'x': width * 0.52, 'y': wristY + 10, 'likelihood': 0.95},
-          {'name': 'leftShoulder', 'x': width * 0.45, 'y': height * 0.35, 'likelihood': 0.95},
-          {'name': 'rightShoulder', 'x': width * 0.55, 'y': height * 0.35, 'likelihood': 0.95},
-          {'name': 'leftAnkle', 'x': width * 0.45, 'y': height * 0.85, 'likelihood': 0.95},
-          {'name': 'rightAnkle', 'x': width * 0.55, 'y': height * 0.85, 'likelihood': 0.95},
+          {'name': 'leftWrist', 'x': width * 0.50, 'y': wristY, 'likelihood': 0.98},
+          {'name': 'rightWrist', 'x': width * 0.52, 'y': wristY + 8, 'likelihood': 0.98},
+          {'name': 'leftShoulder', 'x': width * 0.45, 'y': height * 0.35, 'likelihood': 0.98},
+          {'name': 'rightShoulder', 'x': width * 0.55, 'y': height * 0.35, 'likelihood': 0.98},
+          {'name': 'leftAnkle', 'x': width * 0.45, 'y': height * 0.85, 'likelihood': 0.98},
+          {'name': 'rightAnkle', 'x': width * 0.55, 'y': height * 0.85, 'likelihood': 0.98},
         ],
       });
     }
