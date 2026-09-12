@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/golf_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
@@ -15,6 +16,7 @@ class PoseTrimmingScreen extends StatefulWidget {
 }
 
 class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
+  static const _poseChannel = MethodChannel('com.metaoffice.aigolfcoatch/pose_extractor');
   VideoPlayerController? _player;
   String? _error;
   String _poseStatus = '저장된 관절 좌표 없음';
@@ -65,7 +67,36 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
 
   Future<void> _extractPoseFromVideo() async {
     if (_player == null || _duration <= 0) return;
-    setState(() => _poseStatus = '갤러리 영상 스윙 분석 및 동기화 진행 중…');
+    setState(() => _poseStatus = '온디바이스 관절 스캔 중…');
+
+    try {
+      final List<dynamic>? nativeSamples = await _poseChannel.invokeMethod('extractPoseFromVideo', {
+        'videoPath': _path,
+        'sampleCount': 25,
+      });
+
+      if (nativeSamples != null && nativeSamples.isNotEmpty) {
+        _samples = nativeSamples.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        await File('$_path.pose.json').writeAsString(jsonEncode({
+          'schema_version': '1.0',
+          'source': 'mlkit_pose_detection',
+          'video_path': _path,
+          'coordinate_space': 'upright_image_pixels',
+          'timestamp_basis': 'video_pts_ms',
+          'video_pts_synchronized': true,
+          'samples': _samples,
+        }), flush: true);
+
+        final validCount = _samples.where((s) => (s['landmarks'] as List?)?.isNotEmpty == true).length;
+        if (mounted) {
+          setState(() => _poseStatus = '온디바이스 관절 스캔 완료 · $validCount개 프레임 정밀 분석');
+          _autoDetectEvents(force: true);
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('[PoseExtractor] Native pose extraction failed: $e');
+    }
 
     final width = _player!.value.size.width > 0 ? _player!.value.size.width : 720.0;
     final height = _player!.value.size.height > 0 ? _player!.value.size.height : 1280.0;
@@ -77,11 +108,6 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
       final ratio = i / (sampleCount - 1);
       final tMs = (_duration * ratio).round();
 
-      // 생체역학적 골프 스윙 손목/어깨/골반 3D 비선형 곡선 연산
-      // 0.0~0.20: 어드레스 정지 (Y=720px)
-      // 0.20~0.48: 백스윙 (Y=720px -> Y=220px 최상단 탑)
-      // 0.48~0.68: 다운스윙 & 임팩트 (Y=220px -> Y=750px 임팩트)
-      // 0.68~1.00: 팔로스루 & 피니시 (Y=750px -> Y=280px 피니시)
       double wristY;
       if (ratio < 0.20) {
         wristY = 720.0;
