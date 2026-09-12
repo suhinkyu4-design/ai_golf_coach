@@ -207,25 +207,41 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
 
   void _setEvent(String key, int ms) {
     setState(() {
-      final target = ms.clamp(0, _duration);
-      _events[key] = target;
-
       final startMs = _range.start.round();
       final endMs = _range.end.round();
+      final target = ms.clamp(startMs, endMs);
 
-      // 백스윙 탑(top) 지정 시 어드레스, 임팩트, 피니시 자동 상대 배치
-      if (key == 'top') {
-        final topMs = target;
-        if (_events['address'] == null || _events['address']! >= topMs) {
-          _events['address'] = (startMs + (topMs - startMs) * 0.40).round().clamp(startMs, topMs - 50);
-        }
-        if (_events['impact'] == null || _events['impact']! <= topMs) {
-          _events['impact'] = (topMs + (endMs - topMs) * 0.30).round().clamp(topMs + 50, endMs - 50);
-        }
-        if (_events['finish'] == null || _events['finish']! <= _events['impact']!) {
-          _events['finish'] = (_events['impact']! + (endMs - _events['impact']!) * 0.65).round().clamp(_events['impact']! + 50, endMs);
-        }
+      int address = _events['address'] ?? startMs;
+      int top = _events['top'] ?? (startMs + (endMs - startMs) * 0.40).round();
+      int impact = _events['impact'] ?? (startMs + (endMs - startMs) * 0.60).round();
+      int finish = _events['finish'] ?? endMs;
+
+      if (key == 'address') {
+        address = target;
+        if (top <= address) top = (address + 50).clamp(startMs, endMs);
+        if (impact <= top) impact = (top + 50).clamp(startMs, endMs);
+        if (finish <= impact) finish = (impact + 50).clamp(startMs, endMs);
+      } else if (key == 'top') {
+        top = target;
+        if (address >= top) address = (top - 50).clamp(startMs, top);
+        if (impact <= top) impact = (top + 50).clamp(startMs, endMs);
+        if (finish <= impact) finish = (impact + 50).clamp(startMs, endMs);
+      } else if (key == 'impact') {
+        impact = target;
+        if (top >= impact) top = (impact - 50).clamp(startMs, impact);
+        if (address >= top) address = (top - 50).clamp(startMs, top);
+        if (finish <= impact) finish = (impact + 50).clamp(startMs, endMs);
+      } else if (key == 'finish') {
+        finish = target;
+        if (impact >= finish) impact = (finish - 50).clamp(startMs, finish);
+        if (top >= impact) top = (impact - 50).clamp(startMs, impact);
+        if (address >= top) address = (top - 50).clamp(startMs, top);
       }
+
+      _events['address'] = address;
+      _events['top'] = top;
+      _events['impact'] = impact;
+      _events['finish'] = finish;
     });
   }
 
