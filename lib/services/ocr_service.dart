@@ -16,6 +16,7 @@ class OcrService {
     final values = <String, double>{};
     final numberRegExp = RegExp(r'[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?');
 
+    // 1단계: 라인별 Key-Value 단일 패턴 추출
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
 
@@ -24,26 +25,21 @@ class OcrService {
         if (values.containsKey(key)) continue;
 
         if (entry.value.hasMatch(line)) {
-          String searchArea = line;
-          var match = numberRegExp.firstMatch(searchArea);
+          final match = entry.value.firstMatch(line)!;
+          final tail = line.substring(match.end).trim();
+          var numMatch = numberRegExp.firstMatch(tail);
 
-          int targetLineIndex = i;
-          if (match == null) {
-            for (int offset = 1; offset <= 2 && (i + offset) < lines.length; offset++) {
-              final nextLine = lines[i + offset];
-              if (_labels.values.any((r) => r.hasMatch(nextLine))) break;
-              match = numberRegExp.firstMatch(nextLine);
-              if (match != null) {
-                searchArea = nextLine;
-                targetLineIndex = i + offset;
-                break;
-              }
+          String searchArea = line;
+          if (numMatch == null && (i + 1) < lines.length) {
+            final nextLine = lines[i + 1];
+            if (!_labels.values.any((r) => r.hasMatch(nextLine))) {
+              numMatch = numberRegExp.firstMatch(nextLine);
+              searchArea = nextLine;
             }
           }
 
-          if (match != null) {
-            final numStr = match.group(0)!.replaceAll(',', '');
-            final n = double.tryParse(numStr);
+          if (numMatch != null) {
+            final n = double.tryParse(numMatch.group(0)!.replaceAll(',', ''));
             if (n != null && n.isFinite) {
               final unitArea = searchArea.toLowerCase().replaceAll(' ', '');
               double? value;
@@ -72,9 +68,55 @@ class OcrService {
                 value = n;
               }
 
-              if (value != null) {
-                values[key] = value;
+              if (value != null) values[key] = value;
+            }
+          }
+        }
+      }
+    }
+
+    // 2단계: 골프존/스마트골프 등 다중 컬럼/그리드 패턴 매칭 (라인 L: 라벨들, 라인 L+1: 숫자들)
+    for (int i = 0; i < lines.length - 1; i++) {
+      final labelLine = lines[i];
+      final valueLine = lines[i + 1];
+
+      final foundLabels = <_LabelPosition>[];
+      for (final entry in _labels.entries) {
+        final key = entry.key;
+        if (values.containsKey(key)) continue;
+
+        final matches = entry.value.allMatches(labelLine);
+        for (final m in matches) {
+          foundLabels.add(_LabelPosition(key: key, start: m.start));
+        }
+      }
+
+      if (foundLabels.isEmpty) continue;
+      foundLabels.sort((a, b) => a.start.compareTo(b.start));
+
+      final numMatches = numberRegExp.allMatches(valueLine).toList();
+      if (numMatches.isNotEmpty) {
+        for (int k = 0; k < foundLabels.length; k++) {
+          final labelInfo = foundLabels[k];
+          if (values.containsKey(labelInfo.key)) continue;
+
+          if (k < numMatches.length) {
+            final n = double.tryParse(numMatches[k].group(0)!.replaceAll(',', ''));
+            if (n != null && n.isFinite) {
+              double? value;
+              final key = labelInfo.key;
+
+              if (key == 'ball' || key == 'club') {
+                if (n > 0) value = n;
+              } else if (key == 'carry' || key == 'total') {
+                if (n >= 0) value = n;
+              } else if (key == 'launch') {
+                if (n >= -90 && n <= 90) value = n;
+              } else if (key == 'back' || key == 'side') {
+                value = n;
               }
+
+              if (value != null) values[key] = value;
             }
           }
         }
@@ -94,4 +136,10 @@ class OcrService {
       ocrStatus: OcrStatus.pending,
     );
   }
+}
+
+class _LabelPosition {
+  final String key;
+  final int start;
+  _LabelPosition({required this.key, required this.start});
 }
