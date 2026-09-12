@@ -52,7 +52,9 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
       _range = RangeValues(0, _duration.toDouble());
       await _loadPose();
       await _loadReview();
-      _autoDetectEvents();
+      if (_events.length < _labels.length) {
+        _autoDetectEvents(force: true);
+      }
       if (!mounted) return;
       player.addListener(_tick);
       setState(() {});
@@ -195,8 +197,9 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     });
   }
 
-  void _autoDetectEvents() {
-    if (_events.isNotEmpty && _events.length == _labels.length) return;
+  void _autoDetectEvents({bool force = false}) {
+    if (!force && _events.length == _labels.length) return;
+    _events.clear();
 
     final startMs = _range.start.round().clamp(0, _duration);
     final endMs = _range.end.round().clamp(startMs + 100, _duration);
@@ -495,14 +498,28 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppTheme.mint.withOpacity(0.3)),
           ),
-          child: const Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.auto_awesome, color: AppTheme.mint, size: 20),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '⚡ 스윙 4단계 구간이 자동으로 추출되었습니다.\n항목을 누르면 해당 프레임으로 이동하며, 필요시 미세 보정하세요.',
-                  style: TextStyle(fontSize: 12, height: 1.4, color: AppTheme.mint),
+              const Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: AppTheme.mint, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '⚡ 스윙 4단계 구간이 생체역학 알고리즘으로 자동 연계 탐지되었습니다.',
+                      style: TextStyle(fontSize: 12, height: 1.4, color: AppTheme.mint, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _autoDetectEvents(force: true),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('스윙 4단계 시각 자동 다시 맞추기', style: TextStyle(fontSize: 12)),
                 ),
               ),
             ],
