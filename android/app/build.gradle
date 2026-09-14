@@ -31,7 +31,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.metaoffice.aigolfcoatch"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -45,7 +45,7 @@ android {
 
     defaultConfig {
         applicationId "com.metaoffice.aigolfcoatch"
-        minSdk 21
+        minSdkVersion flutter.minSdkVersion
         targetSdk flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
@@ -62,11 +62,19 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (keystoreProperties['storeFile'] != null) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            signingConfig signingConfigs.release
+            if (keystoreProperties['storeFile'] != null) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 }
