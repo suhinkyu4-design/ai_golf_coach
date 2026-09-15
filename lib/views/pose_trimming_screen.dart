@@ -356,6 +356,83 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     _events['finish'] = (startMs + span * 0.85).round();
   }
 
+  void _smartFocusSwing() {
+    if (_duration <= 0) return;
+
+    // 대기 시간을 제외한 스윙 동작 포커스 (약 35%~85% 구역)
+    final startMs = (_duration * 0.35).round().clamp(0, _duration - 2000);
+    final endMs = (_duration * 0.85).round().clamp(startMs + 2000, _duration);
+
+    setState(() {
+      _range = RangeValues(startMs.toDouble(), endMs.toDouble());
+      _autoDetectEvents(force: true);
+      if (_player != null && _events['top'] != null) {
+        _seek(_events['top']!);
+      }
+    });
+  }
+
+  Widget _buildTimelineChips(VideoPlayerController p) {
+    final startMs = _range.start.round();
+    final endMs = _range.end.round();
+    final span = endMs - startMs;
+    if (span <= 0) return const SizedBox();
+
+    const count = 10;
+    final step = span / (count - 1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('📸 스윙 순간 타임라인 (누르면 즉시 이동)',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.mint)),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: _smartFocusSwing,
+              icon: const Icon(Icons.center_focus_strong, size: 14, color: AppTheme.mint),
+              label: const Text('스윙 동작 자동 포커스', style: TextStyle(fontSize: 11, color: AppTheme.mint)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 40,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: count,
+            itemBuilder: (context, index) {
+              final ms = (startMs + (step * index)).round();
+              final isCurrent = (p.value.position.inMilliseconds - ms).abs() < (step / 2);
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: ChoiceChip(
+                  label: Text('${(ms / 1000).toStringAsFixed(2)}초',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrent ? Colors.black : Colors.white70,
+                    )),
+                  selected: isCurrent,
+                  selectedColor: AppTheme.mint,
+                  backgroundColor: const Color(0xFF26332C),
+                  onSelected: (_) => _seek(ms),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   void _tick() {
     if (!mounted) return;
     final p = _player!;
@@ -511,6 +588,8 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         Text('${_time(p.value.position.inMilliseconds)} / ${_time(_duration)}'),
         Slider(value: p.value.position.inMilliseconds.clamp(0, _duration).toDouble(),
           max: _duration.toDouble(), onChanged: _seeking || _saving ? null : (v) => _seek(v.round())),
+        _buildTimelineChips(p),
+        const SizedBox(height: 12),
         Wrap(alignment: WrapAlignment.center, spacing: 4, children: [
           TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds - 33), child: const Text('−1프레임')),
           TextButton(onPressed: _seeking || _saving ? null : () => _seek(p.value.position.inMilliseconds - 100), child: const Text('−0.1초')),
