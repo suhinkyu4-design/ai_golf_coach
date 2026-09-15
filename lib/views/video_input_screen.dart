@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/swing_model.dart';
 import '../providers/swing_provider.dart';
 import '../theme/app_theme.dart';
+import '../services/gallery_pose_service.dart';
 import 'pose_trimming_screen.dart';
 import 'live_camera_recording_screen.dart';
 
@@ -59,12 +60,71 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('영상 선택 실패: $e')));
     } finally { if (mounted) setState(() => _busy = false); }
   }
-  void _open(bool camera) {
+
+  Future<void> _open(bool camera) async {
     if (!camera && _video == null) return;
-    context.read<SwingProvider>().createNewSwing(videoPath: camera ? '' : _video!,
-      view: _view, handedness: _hand, club: _club);
-    Navigator.push(context, MaterialPageRoute(builder: (_) => camera
-      ? const LiveCameraRecordingScreen() : const PoseTrimmingScreen()));
+
+    if (!camera) {
+      double currentProgress = 0.05;
+      String currentStatus = '갤러리 영상 관절 스캔 준비 중…';
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E2B25),
+              title: const Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: AppTheme.mint),
+                  SizedBox(width: 8),
+                  Text('갤러리 스윙 분석 중', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(currentStatus, style: const TextStyle(color: AppTheme.mint, fontSize: 13)),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(value: currentProgress, color: AppTheme.mint, backgroundColor: Colors.white12),
+                  const SizedBox(height: 8),
+                  Text('${(currentProgress * 100).toInt()}% 완료', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+      await GalleryPoseService.analyzeGalleryVideo(
+        videoPath: _video!,
+        onProgress: (p, s) {
+          if (mounted) {
+            currentProgress = p;
+            currentStatus = s;
+          }
+        },
+      );
+
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    if (!mounted) return;
+    context.read<SwingProvider>().createNewSwing(
+      videoPath: camera ? '' : _video!,
+      view: _view,
+      handedness: _hand,
+      club: _club,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => camera ? const LiveCameraRecordingScreen() : const PoseTrimmingScreen(),
+      ),
+    );
   }
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -110,7 +170,7 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
         Text('선택한 영상: ${_video!.split('/').last}'),
       ],
       const SizedBox(height: 12),
-      const Text('전신이 보이도록 촬영하세요. 외부 영상은 현재 재생과 수동 구간 지정이 가능하며, 관절 자동 추출은 아직 연결되지 않았습니다.'),
+      const Text('전신이 보이도록 촬영하거나 갤러리 영상을 선택하세요. 선택 시 온디바이스 AI가 관절 궤적 및 어드레스·탑·임팩트·피니시 4구간을 자동 추출합니다.'),
       const SizedBox(height: 24),
       ElevatedButton(onPressed: _video == null || _busy ? null : () => _open(false),
         child: const Text('선택한 영상 확인')),
