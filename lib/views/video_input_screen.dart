@@ -67,12 +67,14 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
     if (!camera) {
       double currentProgress = 0.05;
       String currentStatus = '갤러리 영상 관절 스캔 준비 중…';
+      void Function(void Function())? refreshDialog;
 
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => StatefulBuilder(
           builder: (context, setDialogState) {
+            refreshDialog = setDialogState;
             return AlertDialog(
               backgroundColor: const Color(0xFF1E2B25),
               title: const Row(
@@ -98,17 +100,23 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
         ),
       );
 
-      await GalleryPoseService.analyzeGalleryVideo(
+      final analyzed = await GalleryPoseService.analyzeGalleryVideo(
         videoPath: _video!,
         onProgress: (p, s) {
-          if (mounted) {
+          if (!mounted) return;
+          refreshDialog?.call(() {
             currentProgress = p;
             currentStatus = s;
-          }
+          });
         },
       );
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted && !analyzed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('관절 스캔에 실패했습니다. 영상은 열리지만 자동 후보 시각 정확도는 낮을 수 있습니다.')),
+        );
+      }
     }
 
     if (!mounted) return;

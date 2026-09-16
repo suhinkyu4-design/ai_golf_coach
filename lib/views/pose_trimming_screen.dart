@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../widgets/golf_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import '../providers/swing_provider.dart';
+import '../services/gallery_pose_service.dart';
 import '../theme/app_theme.dart';
 import 'ocr_input_screen.dart';
 
@@ -16,7 +16,6 @@ class PoseTrimmingScreen extends StatefulWidget {
 }
 
 class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
-  static const _poseChannel = MethodChannel('com.metaoffice.aigolfcoatch/pose_extractor');
   VideoPlayerController? _player;
   String? _error;
   String _poseStatus = '저장된 관절 좌표 없음';
@@ -25,11 +24,13 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
   RangeValues _range = const RangeValues(0, 1);
   final Map<String, int> _events = {};
   List<Map<String, dynamic>> _samples = [];
+  int? _visionImpactMs;
+  double? _visionImpactConfidence;
   bool _overlay = false, _saving = false, _seeking = false;
   int _offset = 0;
   static const _labels = {
     'address': '어드레스', 'top': '백스윙 탑',
-    'impact': '임팩트 추정', 'finish': '피니시',
+    'impact': '임팩트 후보', 'finish': '피니시',
   };
 
   @override
@@ -69,90 +70,35 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     if (_player == null || _duration <= 0) return;
     setState(() => _poseStatus = '온디바이스 관절 스캔 중…');
 
-    try {
-      final List<dynamic>? nativeSamples = await _poseChannel.invokeMethod('extractPoseFromVideo', {
-        'videoPath': _path,
-        'sampleCount': 25,
-      });
+    final analyzed = await GalleryPoseService.analyzeGalleryVideo(
+      videoPath: _path,
+      onProgress: (progress, status) {
+        if (!mounted) return;
+        setState(() => _poseStatus = status);
+      },
+    );
 
-      if (nativeSamples != null && nativeSamples.isNotEmpty) {
-        _samples = nativeSamples.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        await File('$_path.pose.json').writeAsString(jsonEncode({
-          'schema_version': '1.0',
-          'source': 'mlkit_pose_detection',
-          'video_path': _path,
-          'coordinate_space': 'upright_image_pixels',
-          'timestamp_basis': 'video_pts_ms',
-          'video_pts_synchronized': true,
-          'samples': _samples,
-        }), flush: true);
-
-        final validCount = _samples.where((s) => (s['landmarks'] as List?)?.isNotEmpty == true).length;
-        if (mounted) {
-          setState(() => _poseStatus = '온디바이스 관절 스캔 완료 · $validCount개 프레임 정밀 분석');
-          _autoDetectEvents(force: true);
-        }
-        return;
+    if (!analyzed) {
+      _samples = [];
+      if (mounted) {
+        setState(() {
+          _poseStatus = '관절 좌표를 추출하지 못했습니다. 자동 후보 시각은 단순 추정값으로 표시됩니다.';
+        });
       }
-    } catch (e) {
-      debugPrint('[PoseExtractor] Native pose extraction failed: $e');
+      return;
     }
 
-    final width = _player!.value.size.width > 0 ? _player!.value.size.width : 720.0;
-    final height = _player!.value.size.height > 0 ? _player!.value.size.height : 1280.0;
-
-    _samples.clear();
-    const sampleCount = 50;
-
-    for (int i = 0; i < sampleCount; i++) {
-      final ratio = i / (sampleCount - 1);
-      final tMs = (_duration * ratio).round();
-
-      double wristY;
-      if (ratio < 0.20) {
-        wristY = 720.0;
-      } else if (ratio < 0.48) {
-        final p = (ratio - 0.20) / (0.48 - 0.20);
-        wristY = 720.0 - (500.0 * p * p);
-      } else if (ratio < 0.68) {
-        final p = (ratio - 0.48) / (0.68 - 0.48);
-        wristY = 220.0 + (530.0 * p * p);
-      } else {
-        final p = (ratio - 0.68) / (1.00 - 0.68);
-        wristY = 750.0 - (470.0 * p);
-      }
-
-      _samples.add({
-        't_ms': tMs,
-        'width': width,
-        'height': height,
-        'detected': true,
-        'landmarks': [
-          {'name': 'leftWrist', 'x': width * 0.50, 'y': wristY, 'likelihood': 0.98},
-          {'name': 'rightWrist', 'x': width * 0.52, 'y': wristY + 8, 'likelihood': 0.98},
-          {'name': 'leftShoulder', 'x': width * 0.45, 'y': height * 0.35, 'likelihood': 0.98},
-          {'name': 'rightShoulder', 'x': width * 0.55, 'y': height * 0.35, 'likelihood': 0.98},
-          {'name': 'leftAnkle', 'x': width * 0.45, 'y': height * 0.85, 'likelihood': 0.98},
-          {'name': 'rightAnkle', 'x': width * 0.55, 'y': height * 0.85, 'likelihood': 0.98},
-        ],
-      });
-    }
-
-    try {
-      await File('$_path.pose.json').writeAsString(jsonEncode({
-        'schema_version': '1.0',
-        'source': 'mlkit_pose_detection',
-        'video_path': _path,
-        'coordinate_space': 'upright_image_pixels',
-        'timestamp_basis': 'video_pts_ms',
-        'video_pts_synchronized': true,
-        'samples': _samples,
-      }), flush: true);
-      _poseStatus = '갤러리 영상 관절 수치 동기화 완료 · ${_samples.length}개 프레임 연동';
-    } catch (_) {}
+    await _loadPose(allowRefresh: false);
+    if (!mounted) return;
+    setState(() {
+      final validCount = _samples.where((s) => (s['landmarks'] as List?)?.isNotEmpty == true).length;
+      _poseStatus = _samples.isEmpty
+          ? '관절 좌표를 읽지 못했습니다. 자동 후보 시각은 단순 추정값으로 표시됩니다.'
+          : '온디바이스 관절 스캔 완료 · $validCount개 프레임 정밀 분석';
+    });
   }
 
-  Future<void> _loadPose() async {
+  Future<void> _loadPose({bool allowRefresh = true}) async {
     final file = File('$_path.pose.json');
     if (!await file.exists()) {
       await _extractPoseFromVideo();
@@ -167,7 +113,27 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
           data['coordinate_space'] != 'upright_image_pixels') {
         throw const FormatException('지원하지 않는 좌표 형식');
       }
+      final schemaVersion = data['schema_version'] as String?;
+      final savedSampleCount = data['sample_count'] as int?;
+      final visionImpact = data['vision_impact'];
+      if (visionImpact is Map<String, dynamic>) {
+        final rawMs = visionImpact['t_ms'];
+        final rawConfidence = visionImpact['confidence'];
+        _visionImpactMs = rawMs is int ? rawMs : null;
+        _visionImpactConfidence = rawConfidence is num ? rawConfidence.toDouble() : null;
+      } else {
+        _visionImpactMs = null;
+        _visionImpactConfidence = null;
+      }
       final raw = data['samples'] as List;
+      if (allowRefresh &&
+          (schemaVersion != GalleryPoseService.poseSchemaVersion ||
+              (savedSampleCount ?? raw.length) < GalleryPoseService.recommendedSampleCount ||
+              _visionImpactMs == null)) {
+        setState(() => _poseStatus = '기존 관절 기록이 거칠어서 정밀 분석용으로 다시 스캔 중…');
+        await _extractPoseFromVideo();
+        return;
+      }
       if (raw.length > 20000) throw const FormatException('기록 개수 초과');
       _samples = raw.map((e) => Map<String, dynamic>.from(e as Map)).where((s) {
         final t = s['t_ms'], w = s['width'], h = s['height'];
@@ -245,6 +211,51 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     });
   }
 
+  double? _averageLandmarkY(List<dynamic> landmarks, Set<String> names) {
+    double sumY = 0;
+    int count = 0;
+    for (final item in landmarks) {
+      if (item is Map && names.contains(item['name'])) {
+        final y = item['y'];
+        if (y is num && y.isFinite) {
+          sumY += y.toDouble();
+          count++;
+        }
+      }
+    }
+    return count == 0 ? null : sumY / count;
+  }
+
+  double? _averageLandmarkX(List<dynamic> landmarks, Set<String> names) {
+    double sumX = 0;
+    int count = 0;
+    for (final item in landmarks) {
+      if (item is Map && names.contains(item['name'])) {
+        final x = item['x'];
+        if (x is num && x.isFinite) {
+          sumX += x.toDouble();
+          count++;
+        }
+      }
+    }
+    return count == 0 ? null : sumX / count;
+  }
+
+  List<double> _smoothSeries(List<double> values) {
+    if (values.length < 3) return List<double>.from(values);
+    return List<double>.generate(values.length, (index) {
+      final from = index == 0 ? 0 : index - 1;
+      final to = index == values.length - 1 ? values.length - 1 : index + 1;
+      double sum = 0;
+      int count = 0;
+      for (int i = from; i <= to; i++) {
+        sum += values[i];
+        count++;
+      }
+      return sum / count;
+    });
+  }
+
   void _autoDetectEvents({bool force = false}) {
     if (!force && _events.length == _labels.length) return;
     _events.clear();
@@ -262,80 +273,188 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
 
     if (validSamples.length >= 5) {
       try {
-        // 1. 어드레스 탐지: 스윙 전반부(10%~45% 구간) 중 손목 Y가 가장 낮고 안정된 준비 자세
+        final wristSamples = <Map<String, dynamic>>[];
+        final wristXs = <double>[];
+        final wristYs = <double>[];
+        for (final sample in validSamples) {
+          final landmarks = sample['landmarks'] as List<dynamic>;
+          final wristX = _averageLandmarkX(landmarks, const {'leftWrist', 'rightWrist'});
+          final wristY = _averageLandmarkY(landmarks, const {'leftWrist', 'rightWrist'});
+          if (wristX != null && wristY != null) {
+            wristSamples.add(sample);
+            wristXs.add(wristX);
+            wristYs.add(wristY);
+          }
+        }
+
+        if (wristSamples.length < 5) {
+          throw const FormatException('손목 궤적이 부족합니다.');
+        }
+
+        final smoothedWristXs = _smoothSeries(wristXs);
+        final smoothedWristYs = _smoothSeries(wristYs);
+
+        // 1. 어드레스 탐지: 스윙 전반부(10%~45% 구간) 중 손목 Y가 가장 큰 준비 자세
         int addressIndex = 0;
         double maxAddressWristY = -double.infinity;
-        int maxIndexForSearch = (validSamples.length * 0.45).round().clamp(1, validSamples.length - 1);
+        int maxIndexForSearch = (wristSamples.length * 0.45).round().clamp(1, wristSamples.length - 1);
 
         for (int i = 0; i < maxIndexForSearch; i++) {
-          final landmarks = validSamples[i]['landmarks'] as List;
-          double sumY = 0; int count = 0;
-          for (final item in landmarks) {
-            if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
-              sumY += (item['y'] as num).toDouble();
-              count++;
-            }
-          }
-          if (count > 0) {
-            final avgY = sumY / count;
-            if (avgY > maxAddressWristY) {
-              maxAddressWristY = avgY;
-              addressIndex = i;
-            }
+          final avgY = smoothedWristYs[i];
+          if (avgY > maxAddressWristY) {
+            maxAddressWristY = avgY;
+            addressIndex = i;
           }
         }
 
         // 2. 백스윙 탑 탐지: 어드레스 이후 ~ 스윙 80% 구간 사이 손목 Y 위치가 가장 높은(최소 Y) 지점
         int topIndex = addressIndex;
         double minTopWristY = double.infinity;
-        int topSearchEndIndex = (validSamples.length * 0.80).round().clamp(addressIndex + 1, validSamples.length);
+        int topSearchEndIndex = (wristSamples.length * 0.80).round().clamp(addressIndex + 1, wristSamples.length);
 
         for (int i = addressIndex; i < topSearchEndIndex; i++) {
-          final landmarks = validSamples[i]['landmarks'] as List;
-          double sumY = 0; int count = 0;
-          for (final item in landmarks) {
-            if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
-              sumY += (item['y'] as num).toDouble();
-              count++;
-            }
-          }
-          if (count > 0) {
-            final avgY = sumY / count;
-            if (avgY < minTopWristY) {
-              minTopWristY = avgY;
-              topIndex = i;
-            }
+          final avgY = smoothedWristYs[i];
+          if (avgY < minTopWristY) {
+            minTopWristY = avgY;
+            topIndex = i;
           }
         }
 
-        // 3. 임팩트 탐지: 백스윙 탑 이후 손목 Y가 다시 어드레스 높이로 하강하는 지점
-        int impactIndex = topIndex;
-        double maxImpactWristY = -double.infinity;
-        for (int i = topIndex; i < validSamples.length; i++) {
-          final landmarks = validSamples[i]['landmarks'] as List;
-          double sumY = 0; int count = 0;
-          for (final item in landmarks) {
-            if (item is Map && (item['name'] == 'leftWrist' || item['name'] == 'rightWrist')) {
-              sumY += (item['y'] as num).toDouble();
-              count++;
+        // 3. 임팩트 탐지:
+        // 임팩트는 "가장 닮은 자세"보다
+        // 탑 이후 손목 중심이 어드레스 손 위치 근처로 처음 다시 들어오는 시점에 더 가깝다.
+        final addressY = smoothedWristYs[addressIndex];
+        final addressX = smoothedWristXs[addressIndex];
+        final topY = smoothedWristYs[topIndex];
+        final swingAmplitude = (addressY - topY).abs();
+        if (swingAmplitude < 1) {
+          throw const FormatException('스윙 진폭이 너무 작습니다.');
+        }
+        final topMs = (wristSamples[topIndex]['t_ms'] as int) - _offset;
+        final visionImpactMs = _visionImpactMs;
+        final canUseVisionImpact = visionImpactMs != null &&
+            visionImpactMs > topMs &&
+            visionImpactMs < endMs &&
+            visionImpactMs > startMs;
+        final impactThresholdY = topY + swingAmplitude * 0.64;
+        final int impactSearchStart = (topIndex + 1).clamp(1, smoothedWristYs.length - 2);
+        final int impactSearchEnd = (wristSamples.length * 0.78).round().clamp(impactSearchStart + 1, wristSamples.length - 2);
+
+        int impactIndex = impactSearchStart;
+        int? firstImpactZoneIndex;
+        final addressDistances = List<double>.filled(wristSamples.length, 0);
+        for (int i = 0; i < wristSamples.length; i++) {
+          final dx = smoothedWristXs[i] - addressX;
+          final dy = smoothedWristYs[i] - addressY;
+          addressDistances[i] = (dx * dx) + ((dy * 1.15) * (dy * 1.15));
+        }
+
+        final topDistance = addressDistances[topIndex];
+        if (topDistance < 1) {
+          throw const FormatException('어드레스와 탑 구분이 약합니다.');
+        }
+        final reentryDistanceThreshold = topDistance * 0.38;
+
+        for (int i = impactSearchStart; i <= impactSearchEnd; i++) {
+          final currentY = smoothedWristYs[i];
+          final currentDistance = addressDistances[i];
+          if (currentY >= impactThresholdY && currentDistance <= reentryDistanceThreshold) {
+            firstImpactZoneIndex = i;
+            break;
+          }
+        }
+
+        if (canUseVisionImpact) {
+          final targetMs = visionImpactMs!;
+          double bestDelta = double.infinity;
+          for (int i = impactSearchStart; i <= impactSearchEnd; i++) {
+            final sampleMs = (wristSamples[i]['t_ms'] as int) - _offset;
+            final delta = (sampleMs - targetMs).abs().toDouble();
+            if (delta < bestDelta) {
+              bestDelta = delta;
+              impactIndex = i;
             }
           }
-          if (count > 0) {
-            final avgY = sumY / count;
-            if (avgY > maxImpactWristY) {
-              maxImpactWristY = avgY;
+        } else if (firstImpactZoneIndex != null) {
+          int bestIndex = firstImpactZoneIndex;
+          double bestScore = -double.infinity;
+          final int localSearchStart = (firstImpactZoneIndex - 1).clamp(impactSearchStart, firstImpactZoneIndex);
+          final int localSearchEnd = (firstImpactZoneIndex + 1).clamp(firstImpactZoneIndex, impactSearchEnd);
+
+          for (int i = localSearchStart; i <= localSearchEnd; i++) {
+            final currentDistance = addressDistances[i];
+            final previousDistance = addressDistances[i - 1];
+            final nextDistance = addressDistances[i + 1];
+            final currentY = smoothedWristYs[i];
+            final velocityIn = (smoothedWristXs[i] - smoothedWristXs[i - 1]).abs() +
+                (smoothedWristYs[i] - smoothedWristYs[i - 1]).abs();
+            final stillApproachingAddress = currentDistance <= previousDistance || currentDistance <= nextDistance;
+            final closenessScore = 1.0 - (currentDistance / topDistance).clamp(0.0, 1.0);
+            final heightScore = ((currentY - impactThresholdY) / swingAmplitude).clamp(0.0, 1.0);
+            final earlyBias = i == localSearchStart ? 1.0 : 0.0;
+            final score = (closenessScore * 22) + (heightScore * 8) + (velocityIn * 0.08) +
+                (stillApproachingAddress ? 4.0 : 0.0) + earlyBias;
+            if (score > bestScore) {
+              bestScore = score;
+              bestIndex = i;
+            }
+          }
+
+          impactIndex = bestIndex;
+        } else {
+          double bestScore = -double.infinity;
+          for (int i = impactSearchStart; i <= impactSearchEnd; i++) {
+            final currentDistance = addressDistances[i];
+            final currentY = smoothedWristYs[i];
+            if (currentY < impactThresholdY) continue;
+            final velocityIn = (smoothedWristXs[i] - smoothedWristXs[i - 1]).abs() +
+                (smoothedWristYs[i] - smoothedWristYs[i - 1]).abs();
+            final closenessScore = 1.0 - (currentDistance / topDistance).clamp(0.0, 1.0);
+            final heightScore = ((currentY - impactThresholdY) / swingAmplitude).clamp(0.0, 1.0);
+            final progressPenalty = ((i - impactSearchStart) / (impactSearchEnd - impactSearchStart + 1)).clamp(0.0, 1.0);
+            final score = (closenessScore * 20) + (heightScore * 7) + (velocityIn * 0.08) - (progressPenalty * 6);
+            if (score > bestScore) {
+              bestScore = score;
               impactIndex = i;
             }
           }
         }
 
-        // 4. 피니시 탐지: 임팩트 이후 후반부
-        int finishIndex = (impactIndex + (validSamples.length - 1 - impactIndex) * 0.65).round().clamp(impactIndex, validSamples.length - 1);
+        if (impactIndex >= wristSamples.length - 1) {
+          impactIndex = wristSamples.length - 2;
+        }
 
-        final addressMs = (validSamples[addressIndex]['t_ms'] as int) - _offset;
-        final topMs = (validSamples[topIndex]['t_ms'] as int) - _offset;
-        final impactMs = (validSamples[impactIndex]['t_ms'] as int) - _offset;
-        final finishMs = (validSamples[finishIndex]['t_ms'] as int) - _offset;
+        if (impactIndex <= topIndex) {
+          impactIndex = (topIndex + 1).clamp(topIndex + 1, wristSamples.length - 2);
+        }
+
+        // 임팩트가 너무 뒤로 밀리면 자동으로 한 단계 앞당긴다.
+        final int maxImpactIndex = (wristSamples.length * 0.80).round().clamp(topIndex + 1, wristSamples.length - 2);
+        if (impactIndex > maxImpactIndex) {
+          impactIndex = maxImpactIndex;
+        }
+
+        // 4. 피니시 탐지:
+        // 임팩트 이후 후반부에서 움직임이 가장 안정되는 지점을 사용한다.
+        final int finishSearchStart = (impactIndex + 1).clamp(impactIndex + 1, wristSamples.length - 1);
+        int finishIndex = finishSearchStart;
+        double bestFinishScore = double.infinity;
+        for (int i = finishSearchStart; i < wristSamples.length; i++) {
+          final currentY = smoothedWristYs[i];
+          final previousY = smoothedWristYs[i - 1];
+          final nextY = i == wristSamples.length - 1 ? currentY : smoothedWristYs[i + 1];
+          final motionScore = (currentY - previousY).abs() + (nextY - currentY).abs();
+          final lateBonus = (i / wristSamples.length) < 0.78 ? 40.0 : 0.0;
+          final score = motionScore + lateBonus;
+          if (score < bestFinishScore) {
+            bestFinishScore = score;
+            finishIndex = i;
+          }
+        }
+
+        final addressMs = (wristSamples[addressIndex]['t_ms'] as int) - _offset;
+        final impactMs = (wristSamples[impactIndex]['t_ms'] as int) - _offset;
+        final finishMs = (wristSamples[finishIndex]['t_ms'] as int) - _offset;
 
         // 순서 검증 (Address < Top < Impact < Finish)
         if (addressMs < topMs && topMs < impactMs && impactMs <= finishMs) {
@@ -528,7 +647,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
       body: _error != null ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(_error!))) :
       !ready ? const Center(child: CircularProgressIndicator()) :
       ListView(padding: const EdgeInsets.all(16), children: [
-        const GolfStepHeader(step: 2, title: '중요한 순간을 찾아보세요', description: '영상을 멈추고 어드레스부터 피니시까지 직접 지정합니다.'),
+        const GolfStepHeader(step: 2, title: '중요한 순간을 찾아보세요', description: '자동 후보를 먼저 보고, 특히 임팩트는 직접 한 번 확인해 주세요.'),
         SizedBox(height: 320, child: Center(child: AspectRatio(
           aspectRatio: p.value.aspectRatio,
           child: ClipRect(child: Stack(fit: StackFit.expand, children: [
@@ -556,12 +675,27 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
                 Text('• 샘플 수: ${_samples.length}개 / 관절 감지 프레임: ${_samples.where((s) => (s['landmarks'] as List?)?.isNotEmpty == true).length}개'),
                 Text('• 백스윙 탑(Top) 수치: ${_events['top'] == null ? "미지정" : "${_events['top']}ms (${_time(_events['top']!)})"}'),
                 Text('• 어드레스(Address) 수치: ${_events['address'] == null ? "미지정" : "${_events['address']}ms (${_time(_events['address']!)})"}'),
-                Text('• 임팩트(Impact) 수치: ${_events['impact'] == null ? "미지정" : "${_events['impact']}ms (${_time(_events['impact']!)})"}'),
+                Text('• 임팩트 후보(Impact candidate): ${_events['impact'] == null ? "미지정" : "${_events['impact']}ms (${_time(_events['impact']!)})"}'),
+                if (_visionImpactMs != null)
+                  Text('• 클럽/공 기반 임팩트 후보: ${_visionImpactMs}ms (${_time(_visionImpactMs!)})  신뢰도 ${((_visionImpactConfidence ?? 0) * 100).toStringAsFixed(0)}%'),
                 Text('• 피니시(Finish) 수치: ${_events['finish'] == null ? "미지정" : "${_events['finish']}ms (${_time(_events['finish']!)})"}'),
               ],
             ),
           ),
         ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.withOpacity(0.35)),
+          ),
+          child: const Text(
+            '현재 자동 임팩트는 사람 관절 포즈만으로 추정한 후보입니다. ML Kit 포즈는 클럽 헤드와 공을 직접 검출하지 않아서, 실제 임팩트와 어긋날 수 있습니다. 임팩트는 아래 버튼으로 한 번 확인해 주세요.',
+            style: TextStyle(color: Colors.orangeAccent, fontSize: 12, height: 1.45),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (_samples.isEmpty) ...[
           Container(
             padding: const EdgeInsets.all(12),
@@ -711,7 +845,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '⚡ 스윙 4단계 구간이 생체역학 알고리즘으로 자동 연계 탐지되었습니다.',
+                      '⚡ 스윙 4단계 구간이 자동 추정되었습니다. 임팩트는 후보값으로 보고 확인해 주세요.',
                       style: TextStyle(fontSize: 12, height: 1.4, color: AppTheme.mint, fontWeight: FontWeight.bold),
                     ),
                   ),

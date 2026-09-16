@@ -88,6 +88,10 @@ void main() async {
   env.remove('ANDROID_PREFS_ROOT');
 
   try {
+    print('🧹 최신 코드 반영을 위해 이전 빌드 캐시 및 패키지를 정제합니다 (flutter clean & pub get)...');
+    await Process.run(flutterCmd, ['clean'], runInShell: true, workingDirectory: Directory.current.path, environment: env);
+    await Process.run(flutterCmd, ['pub', 'get'], runInShell: true, workingDirectory: Directory.current.path, environment: env);
+
     var process = await Process.start(
       flutterCmd,
       ['build', 'apk', '--release'],

@@ -18,7 +18,7 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "extractFrames") {
                 val videoPath = call.argument<String>("videoPath")
-                val sampleCount = call.argument<Int>("sampleCount") ?: 25
+                val sampleCount = call.argument<Int>("sampleCount") ?: 45
 
                 if (videoPath.isNullOrEmpty() || !File(videoPath).exists()) {
                     result.error("INVALID_PATH", "Video file not found", null)
@@ -58,13 +58,14 @@ class MainActivity : FlutterActivity() {
         if (!framesDir.exists()) framesDir.mkdirs()
 
         val framesList = mutableListOf<Map<String, Any>>()
-        val intervalMs = durationMs / sampleCount.coerceAtLeast(1)
+        val frameCount = sampleCount.coerceAtLeast(2)
+        val intervalMs = durationMs.toDouble() / (frameCount - 1).toDouble()
 
-        for (i in 0 until sampleCount) {
-            val tMs = (i * intervalMs).toInt()
+        for (i in 0 until frameCount) {
+            val tMs = (i * intervalMs).toLong().coerceIn(0L, durationMs).toInt()
             val timeUs = tMs * 1000L
 
-            val bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: continue
+            val bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) ?: continue
             val frameFile = File(framesDir, "frame_${i}_${tMs}.jpg")
 
             try {
