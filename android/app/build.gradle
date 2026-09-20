@@ -45,7 +45,7 @@ android {
 
     defaultConfig {
         applicationId "com.metaoffice.aigolfcoatch"
-        minSdkVersion 21
+        minSdkVersion flutter.minSdkVersion
         targetSdk flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
