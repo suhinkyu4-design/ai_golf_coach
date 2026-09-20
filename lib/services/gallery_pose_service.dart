@@ -119,6 +119,11 @@ class GalleryPoseService {
 
   static String? _getLandmarkName(PoseLandmarkType type) {
     switch (type) {
+      case PoseLandmarkType.nose: return 'nose';
+      case PoseLandmarkType.leftEye: return 'leftEye';
+      case PoseLandmarkType.rightEye: return 'rightEye';
+      case PoseLandmarkType.leftEar: return 'leftEar';
+      case PoseLandmarkType.rightEar: return 'rightEar';
       case PoseLandmarkType.leftShoulder: return 'leftShoulder';
       case PoseLandmarkType.rightShoulder: return 'rightShoulder';
       case PoseLandmarkType.leftElbow: return 'leftElbow';
@@ -131,6 +136,10 @@ class GalleryPoseService {
       case PoseLandmarkType.rightKnee: return 'rightKnee';
       case PoseLandmarkType.leftAnkle: return 'leftAnkle';
       case PoseLandmarkType.rightAnkle: return 'rightAnkle';
+      case PoseLandmarkType.leftHeel: return 'leftHeel';
+      case PoseLandmarkType.rightHeel: return 'rightHeel';
+      case PoseLandmarkType.leftFootIndex: return 'leftFootIndex';
+      case PoseLandmarkType.rightFootIndex: return 'rightFootIndex';
       default: return null;
     }
   }
