@@ -8,6 +8,8 @@ import '../services/slm_template_service.dart';
 
 class SwingProvider extends ChangeNotifier {
   AppLanguage _appLanguage = AppLanguage.korean;
+  bool _enableOcrStep = false;
+  bool _enableAdvancedTrimming = false;
   SwingModel? _currentSwing;
   ShotMeasurementModel? _currentShotMeasurement;
   AnalysisResultModel? _currentAnalysisResult;
@@ -27,11 +29,23 @@ class SwingProvider extends ChangeNotifier {
   }
 
   AppLanguage get appLanguage => _appLanguage;
+  bool get enableOcrStep => _enableOcrStep;
+  bool get enableAdvancedTrimming => _enableAdvancedTrimming;
   SwingModel? get currentSwing => _currentSwing;
   ShotMeasurementModel? get currentShotMeasurement => _currentShotMeasurement;
   AnalysisResultModel? get currentAnalysisResult => _currentAnalysisResult;
   List<SwingModel> get swingHistory => _swingHistory;
   bool get isAnalyzing => _isAnalyzing;
+
+  void setEnableOcrStep(bool value) {
+    _enableOcrStep = value;
+    notifyListeners();
+  }
+
+  void setEnableAdvancedTrimming(bool value) {
+    _enableAdvancedTrimming = value;
+    notifyListeners();
+  }
 
   void toggleLanguage() {
     _appLanguage = _appLanguage == AppLanguage.korean ? AppLanguage.english : AppLanguage.korean;

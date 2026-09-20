@@ -8,6 +8,7 @@ import '../providers/swing_provider.dart';
 import '../services/gallery_pose_service.dart';
 import '../theme/app_theme.dart';
 import 'ocr_input_screen.dart';
+import 'analysis_result_screen.dart';
 
 class PoseTrimmingScreen extends StatefulWidget {
   const PoseTrimmingScreen({super.key});
@@ -620,8 +621,16 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         'pose_overlay_offset_ms': _offset, 'pose_video_pts_synchronized': false,
       }), flush: true);
       if (!mounted) return;
-      context.read<SwingProvider>().updateVideoReview(durationMs: _duration, eventsMs: _events);
-      await Navigator.push(context, MaterialPageRoute(builder: (_) => const OcrInputScreen()));
+      final provider = context.read<SwingProvider>();
+      provider.updateVideoReview(durationMs: _duration, eventsMs: _events);
+
+      if (provider.enableOcrStep) {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const OcrInputScreen()));
+      } else {
+        await provider.runAnalysis();
+        if (!mounted) return;
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => AnalysisResultScreen()));
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 또는 화면 이동 실패: $e')));
     } finally {
@@ -892,8 +901,16 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
           ),
         if (!_valid) const Text('선택 구간 안에서 어드레스 < 탑 < 임팩트 < 피니시 순으로 지정하세요.'),
         const SizedBox(height: 12),
-        ElevatedButton(onPressed: _valid && !_saving && !_seeking ? _save : null,
-          child: Text(_saving ? '저장 중…' : '저장 후 스크린 기록 OCR로')),
+        ElevatedButton(
+          onPressed: _valid && !_saving && !_seeking ? _save : null,
+          child: Text(
+            _saving
+                ? '분석 리포트 생성 중…'
+                : (context.watch<SwingProvider>().enableOcrStep
+                    ? '다음: 스크린 샷 OCR 연동 →'
+                    : 'AI 스윙 분석 결과 확인   →'),
+          ),
+        ),
       ]),
     );
   }
