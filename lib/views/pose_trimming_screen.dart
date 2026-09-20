@@ -27,8 +27,9 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
   List<Map<String, dynamic>> _samples = [];
   int? _visionImpactMs;
   double? _visionImpactConfidence;
-  bool _overlay = false, _saving = false, _seeking = false;
-  int _offset = 0;
+  bool _saving = false, _seeking = false;
+  final bool _overlay = true;
+  final int _offset = 0;
   static const _labels = {
     'address': '어드레스', 'top': '백스윙 탑',
     'impact': '임팩트 후보', 'finish': '피니시',
@@ -366,7 +367,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
         }
 
         if (canUseVisionImpact) {
-          final targetMs = visionImpactMs!;
+          final targetMs = visionImpactMs;
           double bestDelta = double.infinity;
           for (int i = impactSearchStart; i <= impactSearchEnd; i++) {
             final sampleMs = (wristSamples[i]['t_ms'] as int) - _offset;
@@ -601,11 +602,15 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     }
     var index = lo == _samples.length ? lo - 1 : lo;
     if (index > 0 && ((_samples[index - 1]['t_ms'] as int) - target).abs() <
-        ((_samples[index]['t_ms'] as int) - target).abs()) index--;
+        ((_samples[index]['t_ms'] as int) - target).abs()) {
+      index--;
+    }
     final s = _samples[index];
     final ratio = (s['width'] as num) / (s['height'] as num);
     if (((s['t_ms'] as int) - target).abs() > 500 || s['detected'] != true ||
-        (ratio / _player!.value.aspectRatio - 1).abs() > .10) return null;
+        (ratio / _player!.value.aspectRatio - 1).abs() > .10) {
+      return null;
+    }
     return s;
   }
 
@@ -934,11 +939,15 @@ class _PosePainter extends CustomPainter {
     final points = <String, Offset>{};
     final width = (s['width'] as num).toDouble(), height = (s['height'] as num).toDouble();
     for (final item in s['landmarks'] as List) {
-      if (item is! Map) continue;
+      if (item is! Map) {
+        continue;
+      }
       final x = item['x'], y = item['y'], confidence = item['likelihood'];
       if (item['name'] is! String || x is! num || y is! num || confidence is! num ||
           !x.isFinite || !y.isFinite || !confidence.isFinite || confidence < .6 ||
-          x < 0 || y < 0 || x > width || y > height) continue;
+          x < 0 || y < 0 || x > width || y > height) {
+        continue;
+      }
       points[item['name'] as String] = Offset(x / width * size.width, y / height * size.height);
     }
     final paint = Paint()..color = Colors.tealAccent..strokeWidth = 3;

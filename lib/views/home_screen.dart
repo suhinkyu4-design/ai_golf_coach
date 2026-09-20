@@ -75,7 +75,7 @@ class HomeScreen extends StatelessWidget {
                   // 2. OCR Step Toggle
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: AppTheme.mint,
+                    activeThumbColor: AppTheme.mint,
                     secondary: const Icon(Icons.document_scanner_outlined, color: AppTheme.mint),
                     title: const Text('스크린 샷 OCR 수치 연동 단계', style: TextStyle(color: Colors.white, fontSize: 15)),
                     subtitle: Text(
@@ -95,7 +95,7 @@ class HomeScreen extends StatelessWidget {
                   // 3. Advanced Trimming Toggle
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: AppTheme.mint,
+                    activeThumbColor: AppTheme.mint,
                     secondary: const Icon(Icons.tune_outlined, color: AppTheme.mint),
                     title: const Text('고급 스윙 4단계 수동 조작 도구', style: TextStyle(color: Colors.white, fontSize: 15)),
                     subtitle: Text(
@@ -122,7 +122,7 @@ class HomeScreen extends StatelessWidget {
                   Center(
                     child: Text(
                       'AI On-Device Golf Coach v0.1.0',
-                      style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
                     ),
                   ),
                 ],

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/models/swing_model.dart';
-import '../lib/services/rule_engine.dart';
-import '../lib/services/slm_template_service.dart';
+import 'package:ai_golf_coach/models/swing_model.dart';
+import 'package:ai_golf_coach/services/rule_engine.dart';
+import 'package:ai_golf_coach/services/slm_template_service.dart';
 
 void main() {
   test('Unconfirmed legacy timestamps and sample angles yield no metrics', () {

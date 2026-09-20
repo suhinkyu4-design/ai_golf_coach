@@ -19,7 +19,9 @@ class SlmTemplateService {
     };
     for (final metric in metrics) {
       if (!supported.contains(metric.id) || metric.status == MetricStatus.unavailable ||
-          !metric.value.isFinite || metric.value <= 0) continue;
+          !metric.value.isFinite || metric.value <= 0) {
+        continue;
+      }
       final String label;
       if (metric.id == 'address_to_top_duration') {
         label = isEn ? 'Address to top' : '어드레스→탑';

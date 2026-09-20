@@ -1,7 +1,7 @@
 enum AppLanguage { korean, english }
 
 class LocalizationService {
-  static Map<String, Map<String, String>> _localizedStrings = {
+  static final Map<String, Map<String, String>> _localizedStrings = {
     'app_title': {
       'ko': 'AI 온디바이스 골프 코치',
       'en': 'AI On-Device Golf Coach',

@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -334,8 +333,8 @@ class _LiveCameraRecordingScreenState extends State<LiveCameraRecordingScreen>
     final c = _camera;
     final seconds = _recordClock.elapsed.inSeconds;
     final time = '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
-    return WillPopScope(
-      onWillPop: () async => !_recording && !_busy,
+    return PopScope(
+      canPop: !_recording && !_busy,
       child: Scaffold(backgroundColor: Colors.black,
         appBar: AppBar(title: const Text('스윙 촬영'),
           automaticallyImplyLeading: !_recording && !_busy),
