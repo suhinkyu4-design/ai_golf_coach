@@ -50,9 +50,10 @@ class AssistantModelService {
     required List<Map<String, String>> history,
     required bool hasAnalysis,
     required bool busy,
+    bool allowSuggestedAction = false,
   }) async {
     if (busy || request.length > 1000 || !await isReady()) return null;
-    final action =
+    final requiredAction =
         decision.intent.action == 'unknown' ? 'reply' : decision.intent.action;
     final argument = decision.intent.argument;
     final compactFeatures = rules.features
@@ -61,10 +62,12 @@ class AssistantModelService {
               'description': feature['description'],
             })
         .toList();
+    final actionInstruction = allowSuggestedAction
+        ? '사용자는 자연어 질문을 했습니다. action에는 reply, clarify 또는 관련된 앱 기능을 제안할 수 있습니다. 제안한 기능은 앱에서 자동 실행되지 않습니다. '
+        : '앱이 검증한 action은 "$requiredAction"이고 argument는 ${jsonEncode(argument)}다. action과 argument를 바꾸지 말고, ';
     final system =
         '${await rootBundle.loadString('assets/assistant_model_system.txt')}\n'
-        '앱이 검증한 action은 "$action"이고 argument는 ${jsonEncode(argument)}다. '
-        'action과 argument를 바꾸지 말고, draft_reply와 facts만 이용해 자연스럽고 간결한 한국어 reply를 작성한다. '
+        '$actionInstruction draft_reply와 facts만 이용해 자연스럽고 간결한 한국어 reply를 작성한다. '
         '사용자의 말투와 직전 대화 맥락을 반영하되 확인되지 않은 측정값이나 기능을 만들지 않는다. '
         '고정 안내문처럼 기능 목록을 반복하지 말고 사용자가 방금 물은 내용에 직접 답한다.';
     final input = jsonEncode({
@@ -81,8 +84,9 @@ class AssistantModelService {
       ],
       'history': history.take(8).toList(),
       'tool_result': null,
-      'required_action': action,
+      'required_action': requiredAction,
       'required_argument': argument,
+      'allow_suggested_action': allowSuggestedAction,
       'draft_reply': draftReply,
     });
     final prompt = '<|im_start|>system\n${_clean(system)}<|im_end|>\n'
@@ -94,13 +98,23 @@ class AssistantModelService {
       final value = raw == null ? null : _jsonObject(raw);
       final reply = value?['reply'];
       final evidence = value?['evidence_ids'];
-      if (value?['action'] != action ||
-          value?['argument'] != argument ||
+      final responseAction = value?['action'];
+      final responseArgument = value?['argument'];
+      final allowedActions = <String>{...AssistantRules.actions, 'reply', 'clarify'};
+      final validAction = allowSuggestedAction
+          ? responseAction is String && allowedActions.contains(responseAction)
+          : responseAction == requiredAction;
+      final validArgument = allowSuggestedAction
+          ? responseArgument == null || responseArgument is String
+          : responseArgument == argument;
+      if (!validAction ||
+          !validArgument ||
           reply is! String ||
           reply.trim().length < 2 ||
           reply.length > 1200 ||
           evidence is! List) return null;
-      return AssistantModelReply(action, argument, reply.trim());
+      return AssistantModelReply(
+          responseAction as String, responseArgument as String?, reply.trim());
     } catch (_) {
       return null;
     }

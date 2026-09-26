@@ -160,6 +160,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     required SwingProvider provider,
     List<String> actions = const [],
     String? resultId,
+    bool allowSuggestedAction = false,
   }) async {
     final history = _messages.reversed
         .take(8)
@@ -179,10 +180,41 @@ class _AssistantScreenState extends State<AssistantScreen>
       hasAnalysis: provider.currentSwing != null &&
           provider.currentAnalysisResult != null,
       busy: provider.isAnalyzing,
+      allowSuggestedAction: allowSuggestedAction,
     );
     if (!mounted) return;
+    final displayActions = <String>[...actions];
+    if (allowSuggestedAction && generated != null) {
+      const actionLabels = {
+        'camera': '새 영상 촬영',
+        'gallery': '갤러리에서 가져오기',
+        'settings': '설정',
+        'history': '최근 기록',
+        'result': '분석 결과',
+        'shot': '샷 기록 추가',
+        'help': '도움말',
+      };
+      final label = actionLabels[generated.action];
+      if (label != null && !displayActions.contains(label)) {
+        displayActions.insert(0, label);
+      }
+    }
     _add(generated?.reply ?? verifiedDraft,
-        actions: actions, resultId: resultId);
+        actions: displayActions, resultId: resultId);
+  }
+
+  String _naturalFallback(String text) {
+    final normalized = AssistantRules.normalize(text);
+    if (normalized.contains('갤러리')) {
+      return '갤러리에서 가져오기는 휴대폰에 저장된 스윙 영상을 골라 분석하는 기능이에요. 이미 찍어 둔 영상도 사용할 수 있고, 선택 뒤에는 자동으로 분석을 시작합니다.';
+    }
+    if (normalized.contains('촬영') || normalized.contains('카메라')) {
+      return '새 영상 촬영은 앱에서 바로 스윙을 촬영한 뒤 저장과 분석을 이어서 진행하는 기능이에요. 촬영할 때는 머리부터 발끝과 클럽 움직임이 화면에 들어오게 해 주세요.';
+    }
+    if (normalized.contains('설정')) {
+      return '설정에서는 테마, 손잡이, 클럽, 촬영 방향, 음성 촬영과 샷 기록 입력 방식을 바꿀 수 있어요.';
+    }
+    return '질문한 내용을 바탕으로 도와드릴게요. 촬영, 갤러리, 분석 결과, 자세 교정, 설정 중 궁금한 내용을 편하게 말씀해 주세요.';
   }
 
   Future<void> _open(Widget page) async {
@@ -327,12 +359,12 @@ class _AssistantScreenState extends State<AssistantScreen>
       if (intent.action == 'unknown') {
         await _coachReply(
             request: text,
-            verifiedDraft:
-                '질문을 정확히 이해하지 못했어요. 골프 스윙 분석이나 이 앱의 기능에 관해 조금 더 구체적으로 말씀해 주세요.',
+            verifiedDraft: _naturalFallback(text),
             rules: rules,
             decision: decision,
             provider: p,
-            actions: const ['새 영상 촬영', '갤러리에서 가져오기']);
+            actions: const ['새 영상 촬영', '갤러리에서 가져오기'],
+            allowSuggestedAction: true);
         return;
       }
       switch (intent.action) {
