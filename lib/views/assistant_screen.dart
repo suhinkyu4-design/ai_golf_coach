@@ -11,6 +11,7 @@ import '../models/swing_model.dart';
 import '../services/assistant_rules.dart';
 import '../services/assistant_operation_log.dart';
 import '../services/assistant_model_service.dart';
+import '../services/remote_assistant_service.dart';
 import '../services/correction_guide.dart';
 import '../services/shot_insight_service.dart';
 import '../widgets/motion_visual_card.dart';
@@ -171,17 +172,24 @@ class _AssistantScreenState extends State<AssistantScreen>
               'content': message.text,
             })
         .toList();
-    final generated = await AssistantModelService.respond(
+    final hasAnalysis = provider.currentSwing != null &&
+        provider.currentAnalysisResult != null;
+    final remoteReply = await RemoteAssistantService.answer(
+      message: request,
+      hasAnalysis: hasAnalysis,
+    );
+    final generated = remoteReply == null
+        ? await AssistantModelService.respond(
       request: request,
       rules: rules,
       decision: decision,
       draftReply: verifiedDraft,
       history: history,
-      hasAnalysis: provider.currentSwing != null &&
-          provider.currentAnalysisResult != null,
+      hasAnalysis: hasAnalysis,
       busy: provider.isAnalyzing,
       allowSuggestedAction: allowSuggestedAction,
-    );
+    )
+        : null;
     if (!mounted) return;
     final displayActions = <String>[...actions];
     if (allowSuggestedAction && generated != null) {
@@ -199,7 +207,7 @@ class _AssistantScreenState extends State<AssistantScreen>
         displayActions.insert(0, label);
       }
     }
-    _add(generated?.reply ?? verifiedDraft,
+    _add(remoteReply ?? generated?.reply ?? verifiedDraft,
         actions: displayActions, resultId: resultId);
   }
 
