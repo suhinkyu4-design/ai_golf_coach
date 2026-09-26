@@ -41,3 +41,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/assistant_rules.json
+    - assets/assistant_model_system.txt
+    - assets/golf_coach_agent.png

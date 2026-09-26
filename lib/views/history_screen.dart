@@ -1,3 +1,4 @@
+import '../widgets/coach_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/swing_provider.dart';
@@ -13,7 +14,7 @@ class HistoryScreen extends StatelessWidget {
     final lang = provider.appLanguage;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: CoachAppBar(
         title: Text(LocalizationService.tr('recent_history', lang)),
       ),
       body: provider.swingHistory.isEmpty

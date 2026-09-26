@@ -18,6 +18,7 @@ bin/
 gen/
 local.properties
 .gradle/
+.kotlin/
 app/build/
 
 # IDE / OS
@@ -25,4 +26,12 @@ app/build/
 *.iml
 .vscode/
 .DS_Store
+__pycache__/
+*.pyc
 Thumbs.db
+
+# Local pinned SLM native build cache
+.slm-build/
+
+# Rebuilt locally from the Drive-hosted SLM model (exceeds GitHub's 100 MB limit)
+android/app/src/main/jniLibs/**/*.so

@@ -1,3 +1,5 @@
+import '../widgets/coach_app_bar.dart';
+import '../providers/experience_settings.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../widgets/golf_widgets.dart';
@@ -17,7 +19,7 @@ class OcrInputScreen extends StatefulWidget {
 class _OcrInputScreenState extends State<OcrInputScreen> {
   final _form = GlobalKey<FormState>();
   final _fields = List.generate(7, (_) => TextEditingController());
-  bool _busy = false;
+  bool _busy = false, _demo = false;
   String? _image, _error;
   String _raw = '';
   TextRecognitionScript _script = TextRecognitionScript.korean;
@@ -28,7 +30,7 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
   void initState() {
     super.initState();
     final shot = context.read<SwingProvider>().currentShotMeasurement;
-    if (shot != null) { _fill(shot); _image = shot.imagePath; }
+    if (shot != null) { _demo = shot.isTestData; _fill(shot); _image = shot.imagePath; }
   }
   void _fill(ShotMeasurementModel shot) {
     final values = [shot.ballSpeedMs, shot.clubSpeedMs, shot.carryDistanceMeters,
@@ -37,20 +39,28 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
       _fields[i].text = values[i]?.toStringAsFixed(3) ?? '';
     }
   }
+  void _example(bool driver) {
+    setState(() {
+      _demo = true; _image = null; _error = null;
+      _raw = driver
+        ? 'Ball Speed 60 m/s\nClub Speed 42 m/s\nCarry 195 m\nTotal Distance 210 m\nLaunch Angle 14°\nBack Spin 2800 rpm\nSide Spin 600 rpm'
+        : 'Ball Speed 45 m/s\nClub Speed 34 m/s\nCarry 135 m\nTotal Distance 141 m\nLaunch Angle 18°\nBack Spin 5000 rpm\nSide Spin -400 rpm';
+      _fill(OcrService.parseOcrText(_raw, context.read<SwingProvider>().currentSwing?.swingId ?? 'example'));
+    });
+  }
   double? _value(int i) => double.tryParse(_fields[i].text.trim().replaceAll(',', ''));
 
-  Future<void> _scan() async {
+  Future<void> _scan(ImageSource source) async {
     setState(() { _busy = true; _error = null; });
     TextRecognizer? recognizer;
     try {
-      final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+      final image = await ImagePicker().pickImage(source: source);
       if (image == null || !mounted) return;
       final provider = context.read<SwingProvider>();
       final swing = provider.currentSwing;
       if (swing == null) throw StateError('선택된 스윙이 없습니다.');
-      provider.clearShotMeasurement();
       setState(() {
-        _image = image.path; _raw = '';
+        _demo = false; _image = image.path; _raw = '';
         for (final c in _fields) { c.clear(); }
       });
       recognizer = TextRecognizer(script: _script);
@@ -88,7 +98,7 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
     try {
       if (skip) { provider.clearShotMeasurement(); } else {
         provider.attachShotMeasurement(ShotMeasurementModel(
-          measurementId: 'shot_${DateTime.now().microsecondsSinceEpoch}',
+          measurementId: '${_demo ? 'demo' : 'shot'}_${DateTime.now().microsecondsSinceEpoch}',
           swingId: swing.swingId, imagePath: _image,
           ballSpeedMs: _value(0), clubSpeedMs: _value(1), carryDistanceMeters: _value(2),
           totalDistanceMeters: _value(3), launchAngleDeg: _value(4),
@@ -107,22 +117,33 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('스크린 샷 기록 확인')),
+    appBar: CoachAppBar(title: const Text('스크린 샷 기록 확인')),
     body: Form(key: _form, child: ListView(padding: const EdgeInsets.all(20), children: [
-      const GolfStepHeader(step: 3, title: '샷의 숫자를 더하세요', description: '같은 스윙의 결과 캡처를 선택하고, 인식값을 원본과 대조하세요.'),
+      const GolfStepHeader(step: 3, title: '샷의 숫자를 더하세요', description: '같은 스윙의 결과를 직접 입력하거나 사진으로 읽어오세요. 인식값은 원본과 대조하세요.'),
       DropdownButton<TextRecognitionScript>(value: _script,
         items: const [
           DropdownMenuItem(value: TextRecognitionScript.latin, child: Text('영문·숫자 인식')),
-          DropdownMenuItem(value: TextRecognitionScript.korean, child: Text('한글 인식 (추가 설정 필요)')),
+          DropdownMenuItem(value: TextRecognitionScript.korean, child: Text('한글·숫자 인식')),
         ], onChanged: _busy ? null : (v) => setState(() => _script = v!)),
-      OutlinedButton.icon(onPressed: _busy ? null : _scan,
+      OutlinedButton.icon(onPressed: _busy ? null : () => _scan(ImageSource.gallery),
         icon: const Icon(Icons.document_scanner), label: const Text('캡처 이미지 선택 · OCR')),
+      OutlinedButton.icon(onPressed: _busy ? null : () => _scan(ImageSource.camera),
+        icon: const Icon(Icons.camera_alt_outlined), label: const Text('샷 결과 촬영 · OCR')),
+      ExpansionTile(title: const Text('테스트 수치로 확인'), children: [
+        const Text('실제 측정값이 아닌 예시입니다. 클럽 설정은 변경하지 않습니다.'),
+        TextButton(onPressed: _busy ? null : () => _example(true), child: const Text('드라이버 예시 · 60 / 42 m/s')),
+        TextButton(onPressed: _busy ? null : () => _example(false), child: const Text('7번 아이언 예시 · 45 / 34 m/s')),
+      ]),
+      if (_demo) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+        const Text('테스트 예시가 입력되어 있습니다. 수정해도 테스트 기록으로 표시됩니다.'),
+        TextButton(onPressed: _busy ? null : () => setState(() { _demo = false; _image = null; _raw = ''; for (final c in _fields) { c.clear(); } }), child: const Text('예시 지우고 실제 수치 입력')),
+      ]))),
       if (_image != null) Padding(padding: const EdgeInsets.symmetric(vertical: 12),
         child: Image.file(File(_image!), height: 220, fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => const Text('원본 이미지를 열 수 없습니다.'))),
       if (_busy) const LinearProgressIndicator(),
       if (_error != null) Padding(padding: const EdgeInsets.all(8),
-        child: Text(_error!, style: const TextStyle(color: Colors.orangeAccent))),
+        child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
       const Text('입력 단위: 속도 m/s · 거리 m. mph는 ×0.44704, km/h는 ÷3.6, yd는 ×0.9144로 변환하세요. 단위가 불명확한 OCR 값은 비워 둡니다.'),
       for (int i = 0; i < _fields.length; i++) Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -141,7 +162,7 @@ class _OcrInputScreenState extends State<OcrInputScreen> {
         )),
       if (_raw.isNotEmpty) ExpansionTile(title: const Text('인식된 원문'), children: [SelectableText(_raw)]),
       const SizedBox(height: 16),
-      ElevatedButton(onPressed: _busy ? null : () => _next(false), child: const Text('수치·단위·같은 샷 여부 확인 후 결과 보기')),
+      ElevatedButton(onPressed: _busy ? null : () => _next(false), child: Text(_demo ? '테스트 예시로 결과 보기' : '수치·단위·같은 샷 여부 확인 후 결과 보기')),
       TextButton(onPressed: _busy ? null : () => _next(true), child: const Text('샷 기록 없이 결과 보기')),
     ])),
   );

@@ -29,6 +29,8 @@ class ShotMeasurementModel {
     this.ocrStatus = OcrStatus.pending,
   });
 
+  bool get isTestData => measurementId.startsWith('demo_');
+
   /// Calculate Smash Factor: Ball Speed / Club Speed
   double? get calculatedSmashFactor {
     if (ocrStatus != OcrStatus.userConfirmed) return null;

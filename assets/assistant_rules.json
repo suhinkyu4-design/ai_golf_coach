@@ -1,0 +1,495 @@
+{
+  "version": 2,
+  "features": [
+    {
+      "action": "camera",
+      "utterances": [
+        "시작",
+        "촬영해줘",
+        "카메라켜줘",
+        "촬영",
+        "카메라",
+        "촬영할게",
+        "촬영할래",
+        "촬영하기",
+        "촬영모드",
+        "새영상촬영",
+        "카메라열어줘",
+        "촬영시작"
+      ],
+      "description": "전신이 보이도록 카메라로 촬영합니다. 촬영을 마치면 영상을 저장하고 분석합니다.",
+      "questions": [
+        "촬영은 어떻게 해",
+        "촬영 방법 알려줘"
+      ],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "카메라",
+          "직접촬영",
+          "새영상촬영"
+        ]
+      ]
+    },
+    {
+      "action": "gallery",
+      "utterances": [
+        "갤러리영상분석해줘",
+        "갤러리열어",
+        "갤러리",
+        "갤러리모드",
+        "갤러리열어줘",
+        "갤러리에서가져오기",
+        "영상선택",
+        "동영상선택",
+        "저장된영상",
+        "영상가져오기",
+        "갤러시"
+      ],
+      "description": "갤러리에서 스윙 영상을 선택하면 분석 결과를 대화창에서 확인할 수 있습니다.",
+      "questions": [
+        "갤러리 사용법 알려줘"
+      ],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "갤러리",
+          "보관한영상",
+          "저장된영상",
+          "저장해둔영상"
+        ]
+      ]
+    },
+    {
+      "action": "settings",
+      "utterances": [
+        "설정",
+        "설정열어줘",
+        "설정보여줘"
+      ],
+      "description": "설정에서 테마, 사용 방식, 클럽, 주사용 손, 촬영 방향과 음성 촬영을 변경할 수 있습니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": false,
+      "search_groups": [
+        [
+          "설정화면",
+          "환경설정"
+        ]
+      ]
+    },
+    {
+      "action": "history",
+      "utterances": [
+        "기록",
+        "최근기록",
+        "지난기록",
+        "기록보여줘"
+      ],
+      "description": "기록 화면에서 저장된 스윙을 선택해 분석 결과를 다시 확인합니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": false,
+      "search_groups": [
+        [
+          "지난기록",
+          "스윙기록",
+          "분석기록"
+        ]
+      ]
+    },
+    {
+      "action": "resultPage",
+      "utterances": [
+        "결과펼쳐보기"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": true,
+      "blocked_while_busy": false
+    },
+    {
+      "action": "result",
+      "utterances": [
+        "결과",
+        "분석결과",
+        "결과보여줘",
+        "방금스윙",
+        "뭐가문제야",
+        "분석결과설명해줘"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": true,
+      "blocked_while_busy": false
+    },
+    {
+      "action": "detail",
+      "utterances": [
+        "분석상세",
+        "측정상세",
+        "상세보기",
+        "자세히보기"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": true,
+      "blocked_while_busy": false
+    },
+    {
+      "action": "video",
+      "utterances": [
+        "영상으로확인",
+        "영상보여줘",
+        "그장면보여줘",
+        "영상으로확인하기"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": true,
+      "blocked_while_busy": false
+    },
+    {
+      "action": "timing",
+      "utterances": [
+        "자세시점수정",
+        "시점수정",
+        "임팩트수정"
+      ],
+      "description": "자동으로 선택된 자세 시점은 필요할 때 시점 수정 화면에서 조절합니다.",
+      "questions": [],
+      "requires_analysis": true,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "시점",
+          "임팩트시간"
+        ],
+        [
+          "수정",
+          "조절"
+        ]
+      ]
+    },
+    {
+      "action": "shot",
+      "utterances": [
+        "샷기록",
+        "샷기록추가",
+        "샷기록입력",
+        "샷분석",
+        "ocr",
+        "스코어사진"
+      ],
+      "description": "분석한 스윙에 샷 수치를 직접 입력하거나 사진에서 읽어 추가할 수 있습니다. 사진에서 읽은 값은 확인 후 적용합니다.",
+      "questions": [],
+      "requires_analysis": true,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "샷기록",
+          "발사각",
+          "볼스피드",
+          "백스핀"
+        ]
+      ]
+    },
+    {
+      "action": "slm",
+      "utterances": [
+        "모델설정",
+        "slm설정"
+      ],
+      "description": "언어 모델은 앱의 측정값과 판정을 설명하는 역할입니다. 모델 설정에서 파일을 선택할 수 있습니다.",
+      "questions": [
+        "SLM의 역할이 뭐야",
+        "언어 모델은 무슨 일을 해"
+      ],
+      "requires_analysis": false,
+      "blocked_while_busy": false,
+      "search_groups": [
+        [
+          "언어모델",
+          "slm",
+          "모델파일"
+        ]
+      ]
+    },
+    {
+      "action": "followup",
+      "utterances": [
+        "왜",
+        "왜그래",
+        "왜그런거야",
+        "그건뭐야",
+        "더설명해줘"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": false
+    },
+    {
+      "action": "practice",
+      "utterances": [
+        "교정안내",
+        "연습",
+        "연습방법",
+        "어떻게연습해",
+        "어떻게고쳐",
+        "교정방법"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": false
+    },
+    {
+      "action": "back",
+      "utterances": [
+        "이전",
+        "뒤로",
+        "이전화면",
+        "처음으로",
+        "홈으로",
+        "취소"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": false
+    },
+    {
+      "action": "dark",
+      "utterances": [
+        "어둡게",
+        "화면어둡게해줘",
+        "어두운화면",
+        "다크모드"
+      ],
+      "description": "어두운 테마로 화면을 변경합니다. 설정에서도 선택할 수 있습니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "테마",
+          "화면",
+          "배경"
+        ],
+        [
+          "어둡",
+          "검정",
+          "다크"
+        ]
+      ]
+    },
+    {
+      "action": "light",
+      "utterances": [
+        "밝게",
+        "화면밝게해줘",
+        "밝은화면",
+        "화이트모드"
+      ],
+      "description": "밝은 테마로 화면을 변경합니다. 설정에서도 선택할 수 있습니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "테마",
+          "화면",
+          "배경"
+        ],
+        [
+          "밝",
+          "흰색",
+          "화이트"
+        ]
+      ]
+    },
+    {
+      "action": "left",
+      "utterances": [
+        "왼손",
+        "왼손잡이",
+        "왼손잡이로설정해",
+        "레프티"
+      ],
+      "description": "왼손잡이 설정은 다음 스윙 분석부터 사용됩니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "왼손잡이",
+          "레프티"
+        ]
+      ]
+    },
+    {
+      "action": "right",
+      "utterances": [
+        "오른손",
+        "오른손잡이",
+        "오른손잡이로설정해"
+      ],
+      "description": "오른손잡이 설정은 다음 스윙 분석부터 사용됩니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "오른손잡이"
+        ]
+      ]
+    },
+    {
+      "action": "driver",
+      "utterances": [
+        "드라이버",
+        "드라이버로설정해"
+      ],
+      "description": "클럽을 드라이버로 설정합니다. 다음 스윙 분석부터 사용됩니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "드라이버"
+        ],
+        [
+          "클럽",
+          "설정"
+        ]
+      ]
+    },
+    {
+      "action": "iron",
+      "utterances": [
+        "7번아이언",
+        "아이언7번",
+        "아이언으로설정해"
+      ],
+      "description": "클럽을 7번 아이언으로 설정합니다. 다음 스윙 분석부터 사용됩니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "7번아이언",
+          "아이언7번"
+        ],
+        [
+          "클럽",
+          "설정"
+        ]
+      ]
+    },
+    {
+      "action": "rear",
+      "utterances": [
+        "후방",
+        "후방촬영",
+        "후방으로설정해"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true
+    },
+    {
+      "action": "face",
+      "utterances": [
+        "정면",
+        "정면촬영",
+        "정면으로설정해"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true
+    },
+    {
+      "action": "voiceOn",
+      "utterances": [
+        "음성촬영켜줘",
+        "음성으로촬영켜기"
+      ],
+      "description": "음성 촬영을 켜면 촬영 화면에서 시작, 종료로 조작합니다. 필요한 마이크 권한은 사용자가 허용해야 합니다.",
+      "questions": [
+        "음성 촬영은 어떻게 사용해"
+      ],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "음성촬영"
+        ],
+        [
+          "켜",
+          "활성"
+        ]
+      ]
+    },
+    {
+      "action": "voiceOff",
+      "utterances": [
+        "음성촬영꺼줘",
+        "음성으로촬영끄기"
+      ],
+      "description": "음성 촬영을 끄면 촬영 버튼으로 시작과 종료를 조작합니다.",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "음성촬영"
+        ],
+        [
+          "꺼",
+          "끄",
+          "비활성"
+        ]
+      ]
+    },
+    {
+      "action": "menu",
+      "utterances": [
+        "메뉴모드",
+        "메뉴모드로변경",
+        "메뉴모드로바꿔줘"
+      ],
+      "description": "앱은 메뉴 방식으로 이용합니다. 어시스턴트 아이콘을 누르면 대화로 도움을 받을 수 있습니다.",
+      "questions": [
+        "메뉴 모드는 어디에서 바꿔"
+      ],
+      "requires_analysis": false,
+      "blocked_while_busy": true,
+      "search_groups": [
+        [
+          "메뉴모드",
+          "메뉴방식"
+        ]
+      ]
+    },
+    {
+      "action": "help",
+      "utterances": [
+        "도움말",
+        "뭘할수있어",
+        "기능",
+        "사용법",
+        "어떻게사용해",
+        "앱소개"
+      ],
+      "description": "",
+      "questions": [],
+      "requires_analysis": false,
+      "blocked_while_busy": false
+    }
+  ]
+}

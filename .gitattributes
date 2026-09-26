@@ -1,0 +1,2 @@
+# Preserve the exact Qwen3 prompt boundaries used in the device regression.
+test/fixtures/slm_impact_prompt.txt text eol=lf
