@@ -38,7 +38,11 @@ class _Message {
 class AssistantScreen extends StatefulWidget {
   final bool popup, cameraContext;
   final AssistantScreenContext? situation;
-  const AssistantScreen({super.key, this.popup = false, this.cameraContext = false, this.situation});
+  const AssistantScreen(
+      {super.key,
+      this.popup = false,
+      this.cameraContext = false,
+      this.situation});
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
 }
@@ -69,10 +73,11 @@ class _AssistantScreenState extends State<AssistantScreen>
         if (mounted) _send(widget.situation!.question);
       });
     } else if (widget.popup) {
-      _messages[0] = _Message(widget.cameraContext
-        ? '촬영 화면을 유지하며 문자로 도와드릴게요. 촬영 중에는 시작·종료 음성 명령을 그대로 사용할 수 있어요.'
-        : '무엇을 도와드릴까요? 기능 사용법이나 분석 결과를 물어보세요.',
-        actions: widget.cameraContext ? const [] : const ['도움말', '설정']);
+      _messages[0] = _Message(
+          widget.cameraContext
+              ? '촬영 화면을 유지하며 문자로 도와드릴게요. 촬영 중에는 시작·종료 음성 명령을 그대로 사용할 수 있어요.'
+              : '무엇을 도와드릴까요? 기능 사용법이나 분석 결과를 물어보세요.',
+          actions: widget.cameraContext ? const [] : const ['도움말', '설정']);
     }
   }
 
@@ -147,6 +152,39 @@ class _AssistantScreenState extends State<AssistantScreen>
     });
   }
 
+  Future<void> _coachReply({
+    required String request,
+    required String verifiedDraft,
+    required AssistantRules rules,
+    required AssistantDecision decision,
+    required SwingProvider provider,
+    List<String> actions = const [],
+    String? resultId,
+  }) async {
+    final history = _messages.reversed
+        .take(8)
+        .toList()
+        .reversed
+        .map((message) => {
+              'role': message.user ? 'user' : 'assistant',
+              'content': message.text,
+            })
+        .toList();
+    final generated = await AssistantModelService.respond(
+      request: request,
+      rules: rules,
+      decision: decision,
+      draftReply: verifiedDraft,
+      history: history,
+      hasAnalysis: provider.currentSwing != null &&
+          provider.currentAnalysisResult != null,
+      busy: provider.isAnalyzing,
+    );
+    if (!mounted) return;
+    _add(generated?.reply ?? verifiedDraft,
+        actions: actions, resultId: resultId);
+  }
+
   Future<void> _open(Widget page) async {
     if (widget.cameraContext) {
       _add('촬영을 마치고 대화창을 닫은 뒤 해당 기능을 열어 주세요.');
@@ -158,9 +196,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     String? next;
     try {
       next = await Navigator.push<String>(
-          context,
-          MaterialPageRoute(
-              builder: (_) => page));
+          context, MaterialPageRoute(builder: (_) => page));
     } finally {
       if (mounted) {
         _away = false;
@@ -263,7 +299,10 @@ class _AssistantScreenState extends State<AssistantScreen>
       final prefs = context.read<ExperienceSettings>();
       final failure = await AssistantOperationLog.current.explainSaved(text);
       if (failure != null) {
-        _add(failure, actions: widget.cameraContext ? const [] : const ['다시 촬영하기', '갤러리에서 가져오기']);
+        _add(failure,
+            actions: widget.cameraContext
+                ? const []
+                : const ['다시 촬영하기', '갤러리에서 가져오기']);
         return;
       }
       if (text == '다시 촬영하기') text = '새 영상 촬영';
@@ -275,20 +314,26 @@ class _AssistantScreenState extends State<AssistantScreen>
               p.currentSwing != null && p.currentAnalysisResult != null,
           busy: p.isAnalyzing);
       if (decision.message != null) {
-        _add(decision.message!, actions: decision.actions);
+        await _coachReply(
+            request: text,
+            verifiedDraft: decision.message!,
+            rules: rules,
+            decision: decision,
+            provider: p,
+            actions: decision.actions);
         return;
       }
       final intent = decision.intent;
       if (intent.action == 'unknown') {
-        final suggestion = await AssistantModelService.suggest(text, rules,
-            hasAnalysis:
-                p.currentSwing != null && p.currentAnalysisResult != null,
-            busy: p.isAnalyzing);
-        if (!mounted) return;
-        if (suggestion != null) {
-          _add('이 기능을 찾으셨나요? 아래 버튼으로 선택해 주세요.', actions: [suggestion]);
-          return;
-        }
+        await _coachReply(
+            request: text,
+            verifiedDraft:
+                '질문을 정확히 이해하지 못했어요. 골프 스윙 분석이나 이 앱의 기능에 관해 조금 더 구체적으로 말씀해 주세요.',
+            rules: rules,
+            decision: decision,
+            provider: p,
+            actions: const ['새 영상 촬영', '갤러리에서 가져오기']);
+        return;
       }
       switch (intent.action) {
         case 'camera':
@@ -337,22 +382,36 @@ class _AssistantScreenState extends State<AssistantScreen>
           await _open(const SlmSettingsScreen());
           break;
         case 'explain':
-          _add(_explain(p, intent.argument!), actions: ['영상으로 확인하기', '교정안내']);
+          await _coachReply(
+              request: text,
+              verifiedDraft: _explain(p, intent.argument!),
+              rules: rules,
+              decision: decision,
+              provider: p,
+              actions: const ['영상으로 확인하기', '교정안내']);
           break;
         case 'followup':
         case 'practice':
-          if (_topic != null)
-            _add(_explain(p, _topic!), actions: ['영상으로 확인하기', '새 영상 촬영']);
-          else
-            _add('어떤 동작이 궁금하세요?', actions: [
-              '스웨이',
-              '배치기',
-              '얼리 스탠드업',
-              '치킨윙',
-              '헤드업',
-              '캐스팅',
-              '오버더탑'
-            ]);
+          final draft = _topic != null
+              ? _explain(p, _topic!)
+              : '어떤 동작이 궁금한지 말씀해 주세요. 스웨이, 배치기, 얼리 스탠드업, 치킨윙, 헤드업, 캐스팅과 오버더탑을 설명할 수 있어요.';
+          await _coachReply(
+              request: text,
+              verifiedDraft: draft,
+              rules: rules,
+              decision: decision,
+              provider: p,
+              actions: _topic != null
+                  ? const ['영상으로 확인하기', '새 영상 촬영']
+                  : const [
+                      '스웨이',
+                      '배치기',
+                      '얼리 스탠드업',
+                      '치킨윙',
+                      '헤드업',
+                      '캐스팅',
+                      '오버더탑'
+                    ]);
           break;
         case 'dark':
         case 'light':
@@ -404,9 +463,14 @@ class _AssistantScreenState extends State<AssistantScreen>
               actions: ['새 영상 촬영', '갤러리에서 가져오기', '설정']);
           break;
         default:
-          _add(
-              '촬영과 영상 선택부터 결과 확인까지 함께 진행할 수 있어요. 아래 기능을 선택하거나 같은 이름을 말씀해 주세요.\n\n설정에서는 손잡이, 클럽, 촬영 방향, 테마와 음성 촬영을 바꿀 수 있습니다. 샷 기록은 직접 입력하거나 사진의 수치를 읽은 뒤 확인해 적용합니다.\n\n예: “배치기 설명해 줘”, “화면 어둡게 해줘”. 아직 이해하지 못한 표현은 실행하지 않고 선택지를 안내합니다.',
-              actions: [
+          await _coachReply(
+              request: text,
+              verifiedDraft:
+                  '촬영과 영상 선택부터 결과 확인까지 함께 진행할 수 있어요. 설정에서는 손잡이, 클럽, 촬영 방향, 테마와 음성 촬영을 바꿀 수 있습니다. 궁금한 기능이나 스윙 동작을 편하게 말씀해 주세요.',
+              rules: rules,
+              decision: decision,
+              provider: p,
+              actions: const [
                 '새 영상 촬영',
                 '갤러리에서 가져오기',
                 '설정',
@@ -446,7 +510,8 @@ class _AssistantScreenState extends State<AssistantScreen>
   @override
   Widget build(BuildContext context) {
     final p = context.watch<SwingProvider>();
-    if (widget.situation == null && !_away &&
+    if (widget.situation == null &&
+        !_away &&
         p.currentAnalysisResult != null &&
         !identical(_seenResult, p.currentAnalysisResult)) {
       _seenResult = p.currentAnalysisResult;
@@ -456,14 +521,25 @@ class _AssistantScreenState extends State<AssistantScreen>
     }
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.popup ? 'AI 골프 코치' : '골프 코치'), automaticallyImplyLeading: false, actions: [
-        if (!widget.popup) IconButton(tooltip: 'AI 코치와 대화', icon: const CoachIcon(), onPressed: () => showCoachPopup(context)),
-        if (widget.popup) IconButton(tooltip: '대화 닫기', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-        IconButton(
-            tooltip: '설정',
-            onPressed: _working ? null : () => _send('설정'),
-            icon: const Icon(Icons.settings_outlined))
-      ]),
+      appBar: AppBar(
+          title: Text(widget.popup ? 'AI 골프 코치' : '골프 코치'),
+          automaticallyImplyLeading: false,
+          actions: [
+            if (!widget.popup)
+              IconButton(
+                  tooltip: 'AI 코치와 대화',
+                  icon: const CoachIcon(),
+                  onPressed: () => showCoachPopup(context)),
+            if (widget.popup)
+              IconButton(
+                  tooltip: '대화 닫기',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context)),
+            IconButton(
+                tooltip: '설정',
+                onPressed: _working ? null : () => _send('설정'),
+                icon: const Icon(Icons.settings_outlined))
+          ]),
       body: SafeArea(
           child: Column(children: [
         Expanded(
@@ -562,33 +638,35 @@ class _AssistantScreenState extends State<AssistantScreen>
           const Padding(
               padding: EdgeInsets.all(8),
               child: Text('듣고 있어요. 원하는 기능이나 질문을 말씀하세요.')),
-        if (widget.popup) Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              IconButton(
-                  tooltip: _listening ? '음성 입력 중지' : '음성으로 말하기',
-                  onPressed: _working || widget.cameraContext ? null : _listen,
-                  icon: Icon(_listening ? Icons.stop_circle : Icons.mic_none),
-                  color: colors.primary),
-              Expanded(
-                  child: TextField(
-                      controller: _input,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: _send,
-                      decoration: const InputDecoration(
-                          hintText: '무엇을 도와드릴까요?',
-                          isDense: true,
-                          border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.all(Radius.circular(24)))))),
-              IconButton(
-                  tooltip: '보내기',
-                  onPressed: _working ? null : () => _send(_input.text),
-                  icon: const Icon(Icons.arrow_upward),
-                  color: colors.primary),
-            ])),
+        if (widget.popup)
+          Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                IconButton(
+                    tooltip: _listening ? '음성 입력 중지' : '음성으로 말하기',
+                    onPressed:
+                        _working || widget.cameraContext ? null : _listen,
+                    icon: Icon(_listening ? Icons.stop_circle : Icons.mic_none),
+                    color: colors.primary),
+                Expanded(
+                    child: TextField(
+                        controller: _input,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: _send,
+                        decoration: const InputDecoration(
+                            hintText: '무엇을 도와드릴까요?',
+                            isDense: true,
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.all(Radius.circular(24)))))),
+                IconButton(
+                    tooltip: '보내기',
+                    onPressed: _working ? null : () => _send(_input.text),
+                    icon: const Icon(Icons.arrow_upward),
+                    color: colors.primary),
+              ])),
       ])),
     );
   }

@@ -107,11 +107,29 @@ bool registerSlmDebugCheck() {
     }
   });
   registerExtension('ext.golf.assistantModelCheck', (_, __) async {
-    final rules=AssistantRules.fromJson(await rootBundle.loadString('assets/assistant_rules.json'));
-    final ready=await AssistantModelService.isReady();
-    final timer=Stopwatch()..start();
-    final suggestion=await AssistantModelService.suggest('갤러리에서 저장된 영상 선택해줘',rules,hasAnalysis:false,busy:false);
-    return ServiceExtensionResponse.result(jsonEncode({'ready':ready,'suggestion':suggestion,'elapsed_ms':timer.elapsedMilliseconds}));
+    final rules = AssistantRules.fromJson(
+        await rootBundle.loadString('assets/assistant_rules.json'));
+    final ready = await AssistantModelService.isReady();
+    const request = '촬영이 실패한 이유가 뭐야?';
+    final decision = rules.resolve(request, hasAnalysis: false, busy: false);
+    final timer = Stopwatch()..start();
+    final response = await AssistantModelService.respond(
+        request: request,
+        rules: rules,
+        decision: decision,
+        draftReply: decision.message ?? '촬영 실패 상황을 조금 더 알려주세요.',
+        history: const [
+          {'role': 'assistant', 'content': '무엇을 도와드릴까요?'}
+        ],
+        hasAnalysis: false,
+        busy: false);
+    return ServiceExtensionResponse.result(jsonEncode({
+      'ready': ready,
+      'resolved_action': decision.intent.action,
+      'model_action': response?.action,
+      'reply': response?.reply,
+      'elapsed_ms': timer.elapsedMilliseconds,
+    }));
   });
   registerExtension('ext.golf.portraitCheck', (_, params) async {
     const path = '/data/user/0/com.metaoffice.aigolfcoatch/cache/baa1317c-9ddf-448e-aa5c-937e8a22a598/1000005801.mp4';

@@ -3,6 +3,13 @@ import 'package:flutter/services.dart';
 import 'assistant_rules.dart';
 import 'assistant_intent.dart';
 
+class AssistantModelReply {
+  final String action;
+  final String? argument;
+  final String reply;
+  const AssistantModelReply(this.action, this.argument, this.reply);
+}
+
 /// The candidate model can suggest a button, never execute an unknown request.
 class AssistantModelService {
   static const channel =
@@ -17,6 +24,88 @@ class AssistantModelService {
 
   static Future<void> install(String path) =>
       channel.invokeMethod('installModel', {'path': path});
+
+  static String _clean(String value) =>
+      value.replaceAll('<|', '＜｜').replaceAll('|>', '｜＞');
+
+  static Map<String, dynamic>? _jsonObject(String raw) {
+    try {
+      final start = raw.indexOf('{');
+      final end = raw.lastIndexOf('}');
+      if (start < 0 || end <= start) return null;
+      final value = jsonDecode(raw.substring(start, end + 1));
+      return value is Map ? Map<String, dynamic>.from(value) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Rules choose the safe action and provide verified facts. The model owns
+  /// the user-facing wording for every conversational response.
+  static Future<AssistantModelReply?> respond({
+    required String request,
+    required AssistantRules rules,
+    required AssistantDecision decision,
+    required String draftReply,
+    required List<Map<String, String>> history,
+    required bool hasAnalysis,
+    required bool busy,
+  }) async {
+    if (busy || request.length > 1000 || !await isReady()) return null;
+    final action =
+        decision.intent.action == 'unknown' ? 'reply' : decision.intent.action;
+    final argument = decision.intent.argument;
+    final compactFeatures = rules.features
+        .map((feature) => {
+              'action': feature['action'],
+              'description': feature['description'],
+            })
+        .toList();
+    final system =
+        '${await rootBundle.loadString('assets/assistant_model_system.txt')}\n'
+        '앱이 검증한 action은 "$action"이고 argument는 ${jsonEncode(argument)}다. '
+        'action과 argument를 바꾸지 말고, draft_reply와 facts만 이용해 자연스럽고 간결한 한국어 reply를 작성한다. '
+        '사용자의 말투와 직전 대화 맥락을 반영하되 확인되지 않은 측정값이나 기능을 만들지 않는다. '
+        '고정 안내문처럼 기능 목록을 반복하지 말고 사용자가 방금 물은 내용에 직접 답한다.';
+    final input = jsonEncode({
+      'request': request,
+      'state': {
+        'screen': 'chat',
+        'has_analysis': hasAnalysis,
+        'busy': busy,
+        'last_topic': argument,
+      },
+      'facts': [
+        {'id': 'verified_draft', 'text': draftReply},
+        {'id': 'app_features', 'value': compactFeatures},
+      ],
+      'history': history.take(8).toList(),
+      'tool_result': null,
+      'required_action': action,
+      'required_argument': argument,
+      'draft_reply': draftReply,
+    });
+    final prompt = '<|im_start|>system\n${_clean(system)}<|im_end|>\n'
+        '<|im_start|>user\n${_clean(input)}<|im_end|>\n'
+        '<|im_start|>assistant\n<think>\n\n</think>\n\n';
+    try {
+      final raw =
+          await channel.invokeMethod<String>('describe', {'prompt': prompt});
+      final value = raw == null ? null : _jsonObject(raw);
+      final reply = value?['reply'];
+      final evidence = value?['evidence_ids'];
+      if (value?['action'] != action ||
+          value?['argument'] != argument ||
+          reply is! String ||
+          reply.trim().length < 2 ||
+          reply.length > 1200 ||
+          evidence is! List) return null;
+      return AssistantModelReply(action, argument, reply.trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<String?> suggest(String request, AssistantRules rules,
       {required bool hasAnalysis, required bool busy}) async {
     if (busy || request.length > 1000 || !await isReady()) return null;
@@ -35,15 +124,14 @@ class AssistantModelService {
       'history': [],
       'tool_result': null
     });
-    String clean(String s) => s.replaceAll('<|', '＜｜').replaceAll('|>', '｜＞');
-    final prompt = '<|im_start|>system\n${clean(system)}<|im_end|>\n'
-        '<|im_start|>user\n${clean(input)}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n';
+    final prompt = '<|im_start|>system\n${_clean(system)}<|im_end|>\n'
+        '<|im_start|>user\n${_clean(input)}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n';
     try {
       final raw =
           await channel.invokeMethod<String>('describe', {'prompt': prompt});
       if (raw == null) return null;
-      final p = jsonDecode(raw);
-      if (p is! Map ||
+      final p = _jsonObject(raw);
+      if (p == null ||
           p['argument'] != null ||
           p['evidence_ids'] is! List ||
           (p['evidence_ids'] as List).isNotEmpty) return null;
