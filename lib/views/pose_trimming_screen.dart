@@ -655,6 +655,82 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
     return s;
   }
 
+  Future<void> _runSwingAnalysisWithDialog(SwingProvider provider) async {
+    var currentStage = 0;
+    var currentStatus = '어드레스·백스윙 탑·임팩트·피니시 자세를 준비하고 있습니다.';
+    var dialogActive = true;
+    void Function(void Function())? refreshDialog;
+    final elapsed = Stopwatch()..start();
+    Timer? ticker;
+    const stages = [
+      '핵심 자세별 관절 확인',
+      '스윙 연속 움직임 추적',
+      '오류 동작 패턴 분석',
+      '측정값과 코칭 결과 정리',
+    ];
+
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          refreshDialog = setDialogState;
+          return PopScope(canPop: false, child: AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            title: Row(children: [
+              Icon(Icons.insights_outlined, color: Theme.of(context).colorScheme.primary),
+              SizedBox(width: 8),
+              Text('스윙 동작 분석 중', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.bold)),
+            ]),
+            content: SingleChildScrollView(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(currentStatus, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 13)),
+                SizedBox(height: 12),
+                LinearProgressIndicator(color: Theme.of(context).colorScheme.primary, backgroundColor: Theme.of(context).dividerColor),
+                SizedBox(height: 8),
+                Text('경과 시간 ${elapsed.elapsed.inMinutes}분 ${elapsed.elapsed.inSeconds % 60}초',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+                SizedBox(height: 20),
+                for (var index = 0; index < stages.length; index++)
+                  Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Row(children: [
+                    Icon(index < currentStage ? Icons.check_circle_outline :
+                      index == currentStage ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      color: index <= currentStage ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                      size: 18),
+                    SizedBox(width: 10),
+                    Expanded(child: Text(stages[index], style: TextStyle(fontSize: 13,
+                      color: index <= currentStage ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: index == currentStage ? FontWeight.bold : FontWeight.normal))),
+                  ])),
+                SizedBox(height: 16),
+                Text('스웨이·얼리 스탠드업·배치기·치킨윙·헤드업·캐스팅·오버더탑을 휴대폰에서 확인합니다.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+              ],
+            )),
+          ));
+        },
+      ),
+    ).whenComplete(() { dialogActive = false; ticker?.cancel(); }));
+    ticker = Timer.periodic(Duration(seconds: 1), (_) {
+      if (mounted && dialogActive) refreshDialog?.call(() {});
+    });
+    try {
+      await provider.runAnalysis(onProgress: (step, message) {
+        currentStage = step >= 4 ? 3 : message.contains('검사') ? 2 : (step - 2).clamp(0, stages.length - 1);
+        currentStatus = message;
+        _updateAnalysis(step, message);
+        if (mounted && dialogActive) refreshDialog?.call(() {});
+      });
+    } finally {
+      ticker?.cancel();
+      elapsed.stop();
+      if (mounted && dialogActive) Navigator.of(context, rootNavigator: true).pop();
+      dialogActive = false;
+    }
+  }
+
   Future<void> _save() async {
     if (!_valid || _saving || _seeking) return;
     setState(() => _saving = true);
@@ -670,7 +746,7 @@ class _PoseTrimmingScreenState extends State<PoseTrimmingScreen> {
       if (!mounted) return;
       context.read<SwingProvider>().updateVideoReview(durationMs: _duration, eventsMs: _events);
       final provider = context.read<SwingProvider>();
-      await provider.runAnalysis(onProgress: _updateAnalysis);
+      await _runSwingAnalysisWithDialog(provider);
       if (!mounted) return;
       if (widget.autoAnalyze) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AnalysisResultScreen()));
