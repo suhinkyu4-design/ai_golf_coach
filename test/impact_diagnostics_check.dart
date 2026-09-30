@@ -57,6 +57,13 @@ Future<void> main() async {
   final noReturn=ImpactDetectionService.scanWindow(phases(
     [160,160,160,160,160,150,120,90,60,40,30,30,35,40,45]));
   check(noReturn==null,'high held finish without downswing accepted');
+  // Real device trace: coarse 200 ms sampling captured the low point between
+  // frames, then caught only the first third of the downswing before finish.
+  final briefReturn=ImpactDetectionService.scanWindow(phases(
+    [636,636,635,634,640,648,656,655,594,467,428,418,518,516,488,
+     448,417,408,411,415,423].map((v)=>v.toDouble()).toList()));
+  check(briefReturn?['top_ms']==1400&&briefReturn?['return_ms']==1680,
+    'coarse scan missed the brief downswing return: $briefReturn');
   final delayed=phases([for(var i=0;i<100;i++)160,160,160,120,60,80,120,150,160,150,150]);
   final late=ImpactDetectionService.scanWindow(delayed);
   check(late!=null&&late['address_ms']!>12000&&late['top_ms']!>14000,'long preparation selected as address');

@@ -8,6 +8,7 @@ build/
 .flutter-plugins-dependencies
 pubspec.zip
 verification.json
+flutter_probe.txt
 
 # Android
 *.apk

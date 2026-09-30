@@ -94,7 +94,12 @@ class ImpactDetectionService {
       for(int j=top+1;j<usable.length;j++) {
         final returnMs=usable[j]['t_ms'] as int;
         if(returnMs-topMs>1000) break;
-        if(ys[j]<smooth[top]+amplitude*.65) continue;
+        // The coarse gallery scan runs about every 200 ms.  A real impact can
+        // occur between samples, so the first captured downswing frame may
+        // only have returned ~40% toward address before the hands rise into
+        // the follow-through.  Require a clear reversal, but do not discard
+        // that short real-world impact interval as a high finish.
+        if(ys[j]<smooth[top]+amplitude*.30) continue;
         windows.add({'address_ms':usable[address]['t_ms'] as int,'top_ms':topMs,
           'return_ms':returnMs,'start_ms':math.max(0,topMs-100),
           'end_ms':math.min(usable.last['t_ms'] as int,returnMs+350)});

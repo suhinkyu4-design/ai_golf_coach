@@ -9,6 +9,7 @@ import '../models/swing_model.dart';
 import '../providers/experience_settings.dart';
 import '../providers/swing_provider.dart';
 import '../services/gallery_pose_service.dart';
+import '../services/app_error_log.dart';
 import 'pose_trimming_screen.dart';
 import 'appearance_settings_screen.dart';
 import 'live_camera_recording_screen.dart';
@@ -69,13 +70,19 @@ class _VideoInputScreenState extends State<VideoInputScreen> {
     AssistantOperationLog.current.begin();
     var picked = false;
     setState(() => _busy = true);
+    AppErrorLog.record('GALLERY_VIDEO_PICK_STARTED', 'source=gallery');
     try {
       final file = await ImagePicker().pickVideo(source: ImageSource.gallery);
-      if (file == null) return;
+      if (file == null) {
+        AppErrorLog.record('GALLERY_VIDEO_PICK_CANCELLED', 'source=gallery');
+        return;
+      }
       if (!await File(file.path).exists()) throw StateError('영상 파일을 찾지 못했습니다.');
+      AppErrorLog.record('GALLERY_VIDEO_PICKED', 'path=${file.path}');
       if (mounted) { setState(() => _video = file.path); picked = true; }
-    } catch (e) {
+    } catch (e, stackTrace) {
       AssistantOperationLog.current.fail('selection', e);
+      AppErrorLog.record('GALLERY_VIDEO_PICK_ERROR', '$e\n$stackTrace');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('영상 선택 실패: $e')));
     } finally { if (mounted) setState(() => _busy = false); }
     if (picked && mounted) await _open(false);
